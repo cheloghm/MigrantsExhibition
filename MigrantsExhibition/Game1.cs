@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Input;
 using MigrantsExhibition.Src;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace MigrantsExhibition
 {
@@ -12,8 +13,6 @@ namespace MigrantsExhibition
     {
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
-
-        public List<Texture2D> cellTextures = new List<Texture2D>(); // Ensure this is public or provide access
 
         private GameOfLife gameOfLife;
         private GUI gui;
@@ -30,6 +29,25 @@ namespace MigrantsExhibition
         private float soundIntensity = 0f; // Declared at class level
         private double generationTimer = 0.0; // Timer for Game of Life generations
 
+        private bool isFadingIn = true;
+        private float fadeOpacity = 1.0f; // Start fully opaque
+
+        // P/Invoke declarations for window manipulation
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        private const int SW_MINIMIZE = 6;
+        private const int SW_RESTORE = 9;
+
+        private KeyboardState currentKeyboardState;
+        private KeyboardState previousKeyboardState;
+
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -41,6 +59,11 @@ namespace MigrantsExhibition
             _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
             _graphics.IsFullScreen = true;
             _graphics.ApplyChanges();
+
+            // Set target frame rate
+            IsFixedTimeStep = true;
+            _graphics.SynchronizeWithVerticalRetrace = false; // Disable VSync for higher FPS
+            TargetElapsedTime = TimeSpan.FromSeconds(1.0 / Constants.TargetFPS);
         }
 
         protected override void Initialize()
@@ -48,6 +71,19 @@ namespace MigrantsExhibition
             Utils.InitializeLogging(); // Initialize logging first
             Utils.LogInfo("Application started.");
             base.Initialize();
+
+            // Initialize Stars across three layers
+            for (int i = 0; i < StarCount; i++)
+            {
+                stars.Add(new Star(GraphicsDevice, layer: 1)); // Farthest layer
+                stars.Add(new Star(GraphicsDevice, layer: 2)); // Middle layer
+                stars.Add(new Star(GraphicsDevice, layer: 3)); // Nearest layer
+            }
+
+            Utils.LogInfo($"Initialized {StarCount * 3} stars across 3 layers.");
+
+            // Initialize keyboard states
+            previousKeyboardState = Keyboard.GetState();
         }
 
         protected override void LoadContent()
@@ -72,7 +108,7 @@ namespace MigrantsExhibition
                 imageLoader = new ImageLoader(GraphicsDevice);
                 Utils.LogInfo("ImageLoader initialized.");
 
-                cellTextures = imageLoader.LoadImages();
+                List<Texture2D> cellTextures = imageLoader.LoadImages();
                 Utils.LogInfo($"Loaded {cellTextures.Count} cell textures.");
 
                 if (cellTextures.Count == 0)
@@ -87,31 +123,11 @@ namespace MigrantsExhibition
                 Utils.LogInfo("GameOfLife initialized.");
 
                 // Initialize cells with fixed size and depth
-                for (int i = 0; i < initialCellCount; i++)
-                {
-                    Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
-                    Vector2 position = new Vector2(random.Next(0, GraphicsDevice.Viewport.Width), random.Next(0, GraphicsDevice.Viewport.Height));
-                    Vector2 direction = new Vector2((float)random.NextDouble() * 2 - 1, (float)random.NextDouble() * 2 - 1);
-                    direction.Normalize();
-                    float speed = Constants.BaseSpeed; // Use centralized speed
-                    float depth = AssignDepth(); // Use method to assign depth
-
-                    Cell newCell = new Cell(texture, position, direction, speed, GraphicsDevice, depth);
-                    newCell.IsBorn = false; // Ensure initial cells don't trigger zoom-in
-                    cells.Add(newCell);
-                }
-                Utils.LogInfo($"{initialCellCount} cells initialized.");
+                InitializeCells(cellTextures);
 
                 // Initialize GameOfLife with cells
                 gameOfLife.Initialize(cells);
                 Utils.LogInfo("GameOfLife cells initialized.");
-
-                // Initialize stars
-                for (int i = 0; i < StarCount; i++)
-                {
-                    stars.Add(new Star(GraphicsDevice));
-                }
-                Utils.LogInfo($"{StarCount} stars initialized.");
 
                 // Initialize GUI with Content Manager and GraphicsDevice
                 gui = new GUI(Content, GraphicsDevice);
@@ -124,13 +140,80 @@ namespace MigrantsExhibition
             }
         }
 
+        private void InitializeCells(List<Texture2D> cellTextures)
+        {
+            // Calculate total possible cells based on screen size and CellSizeLayer2
+            int totalPossibleCellsLayer1 = (int)(GraphicsDevice.Viewport.Width / Constants.CellSizeLayer1) * (int)(GraphicsDevice.Viewport.Height / Constants.CellSizeLayer1);
+            int totalPossibleCellsLayer2 = (int)(GraphicsDevice.Viewport.Width / Constants.CellSizeLayer2) * (int)(GraphicsDevice.Viewport.Height / Constants.CellSizeLayer2);
+            int totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2;
+
+            // Ensure at least initialCellCount live cells
+            int initialLiveCells = Math.Max(initialCellCount, (int)(totalPossibleCells * 0.05f)); // 5% as initial
+
+            for (int i = 0; i < initialLiveCells; i++)
+            {
+                // Random layer assignment (1, 2, or 3)
+                int layer = random.Next(1, Constants.TotalLayers + 1);
+
+                // Select a random texture
+                Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
+
+                // Random position within the viewport
+                Vector2 position = new Vector2(
+                    random.Next(0, GraphicsDevice.Viewport.Width),
+                    random.Next(0, GraphicsDevice.Viewport.Height)
+                );
+
+                // Random direction (not used for movement)
+                Vector2 direction = new Vector2(
+                    (float)random.NextDouble() * 2 - 1,
+                    (float)random.NextDouble() * 2 - 1
+                );
+                direction.Normalize();
+
+                // Assign depth based on layer
+                float depth = layer switch
+                {
+                    1 => 0.3f,
+                    2 => 0.6f,
+                    3 => 0.9f,
+                    _ => 0.5f,
+                };
+
+                // Create and add the new cell
+                Cell newCell = new Cell(texture, position, direction, layer, GraphicsDevice, depth);
+                newCell.IsBorn = false; // Ensure initial cells don't trigger zoom-in
+                cells.Add(newCell);
+            }
+
+            Utils.LogInfo($"{initialLiveCells} cells initialized and added to the simulation.");
+        }
+
         protected override void Update(GameTime gameTime)
         {
             try
             {
+                // Get the current keyboard state
+                currentKeyboardState = Keyboard.GetState();
+
                 // Handle exit on Escape key press
-                if (Keyboard.GetState().IsKeyDown(Keys.Escape))
+                if (currentKeyboardState.IsKeyDown(Keys.Escape))
                     Exit();
+
+                // Toggle Full-Screen Mode on F11 Key Press
+                if (IsKeyPressed(Keys.F11))
+                {
+                    ToggleFullScreen();
+                }
+
+                // Minimize/Restore Window on F12 Key Press
+                if (IsKeyPressed(Keys.F12))
+                {
+                    ToggleMinimizeRestore();
+                }
+
+                // Update previous keyboard state
+                previousKeyboardState = currentKeyboardState;
 
                 if (audioHandler != null)
                 {
@@ -140,7 +223,7 @@ namespace MigrantsExhibition
 
                     // Update generation timer
                     generationTimer += gameTime.ElapsedGameTime.TotalSeconds;
-                    if (generationTimer >= Constants.GenerationInterval)
+                    if (generationTimer >= GetCurrentGenerationInterval())
                     {
                         // Update GameOfLife with sound intensity
                         if (gameOfLife != null)
@@ -169,13 +252,31 @@ namespace MigrantsExhibition
                     star.Update(gameTime, soundIntensity);
                 }
 
+                // Update cells with sound intensity
+                foreach (var cell in cells)
+                {
+                    cell.Update(gameTime, soundIntensity);
+                }
+
+                // Handle initial fade-in
+                if (isFadingIn)
+                {
+                    fadeOpacity -= (float)(gameTime.ElapsedGameTime.TotalSeconds / Constants.FadeInDuration);
+                    if (fadeOpacity <= 0f)
+                    {
+                        fadeOpacity = 0f;
+                        isFadingIn = false;
+                        Utils.LogInfo("Fade-in complete.");
+                    }
+                }
+
                 // Log sound intensity and FPS periodically
                 elapsedTime += gameTime.ElapsedGameTime.TotalSeconds;
                 frameCount++;
                 if (elapsedTime >= 1.0)
                 {
                     fps = frameCount / (float)elapsedTime;
-                    Utils.LogInfo($"Sound Intensity: {soundIntensity:F2}, FPS: {fps:F2}");
+                    Utils.LogInfo($"Sound Intensity: {soundIntensity:F2}%, FPS: {fps:F2}");
                     elapsedTime = 0;
                     frameCount = 0;
                 }
@@ -187,6 +288,73 @@ namespace MigrantsExhibition
                 Utils.LogError($"Exception in Update: {ex.Message}\n{ex.StackTrace}");
                 Exit();
             }
+        }
+
+        /// <summary>
+        /// Checks if a key was just pressed (not held down).
+        /// </summary>
+        /// <param name="key">The key to check.</param>
+        /// <returns>True if the key was just pressed; otherwise, false.</returns>
+        private bool IsKeyPressed(Keys key)
+        {
+            return currentKeyboardState.IsKeyDown(key) && !previousKeyboardState.IsKeyDown(key);
+        }
+
+        /// <summary>
+        /// Toggles the full-screen mode.
+        /// </summary>
+        private void ToggleFullScreen()
+        {
+            _graphics.IsFullScreen = !_graphics.IsFullScreen;
+            _graphics.ApplyChanges();
+            Utils.LogInfo($"Full-Screen Mode Toggled to: {_graphics.IsFullScreen}");
+        }
+
+        /// <summary>
+        /// Toggles between minimizing and restoring the window.
+        /// </summary>
+        private void ToggleMinimizeRestore()
+        {
+            var handle = Window.Handle;
+            if (IsIconic(handle))
+            {
+                // Window is minimized; restore it
+                ShowWindow(handle, SW_RESTORE);
+                SetForegroundWindow(handle);
+                Utils.LogInfo("Window Restored from Minimized State.");
+            }
+            else
+            {
+                // Window is not minimized; minimize it
+                ShowWindow(handle, SW_MINIMIZE);
+                Utils.LogInfo("Window Minimized.");
+            }
+        }
+
+        private double GetCurrentGenerationInterval()
+        {
+            // Map sound intensity from 1-100 to appropriate interval
+            // Lower sound intensity -> slower generations
+            // Higher sound intensity -> faster generations
+
+            if (soundIntensity <= Constants.SoundThresholdLow)
+            {
+                return Constants.GenerationIntervalLow; // 1 generation per second
+            }
+            else if (soundIntensity >= Constants.SoundThresholdMedium && soundIntensity < Constants.SoundThresholdHigh)
+            {
+                // Decrease interval based on sound intensity
+                // For every 10% increase above medium, decrease interval by 7%
+                float excessSound = soundIntensity - Constants.SoundThresholdMedium;
+                double decreaseFactor = (excessSound / 10f) * Constants.GenerationIntervalIncreasePer10Sound;
+                double newInterval = Constants.GenerationIntervalLow - decreaseFactor;
+                return Math.Max(newInterval, 0.1); // Prevent interval from becoming negative
+            }
+            else if (soundIntensity >= Constants.SoundThresholdHigh)
+            {
+                return Constants.GenerationIntervalHigh; // No generation
+            }
+            return Constants.GenerationIntervalLow;
         }
 
         protected override void Draw(GameTime gameTime)
@@ -217,7 +385,17 @@ namespace MigrantsExhibition
 
                 // Draw FPS
                 string fpsText = $"FPS: {fps:F2}";
-                _spriteBatch.DrawString(gui.Font, fpsText, new Vector2(10, 50), Color.White);
+                _spriteBatch.DrawString(gui.Font, fpsText, new Vector2(10, 60), Color.White);
+
+                // Draw initial fade-in overlay
+                if (isFadingIn)
+                {
+                    _spriteBatch.Draw(
+                        gui.OverlayTexture,
+                        new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height),
+                        Color.Black * fadeOpacity
+                    );
+                }
 
                 _spriteBatch.End();
 
@@ -244,20 +422,5 @@ namespace MigrantsExhibition
 
         // Static Random instance to be used across the Game1 class
         private static readonly Random random = new Random();
-
-        private float AssignDepth()
-        {
-            double depthRandom = random.NextDouble();
-            float depth;
-            if (depthRandom < 0.1)
-                depth = 0.1f; // Foreground layer 1
-            else if (depthRandom < 0.3)
-                depth = 0.3f; // Foreground layer 2
-            else if (depthRandom < 0.6)
-                depth = 0.6f; // Background layer 1
-            else
-                depth = 0.9f; // Background layer 2
-            return depth;
-        }
     }
 }

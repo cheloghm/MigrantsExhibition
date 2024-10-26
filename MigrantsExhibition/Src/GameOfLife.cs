@@ -14,14 +14,14 @@ namespace MigrantsExhibition.Src
         private Dictionary<(int, int), int> neighborCounts;
 
         private int initialCellCount;
-        private const float CellSize = Constants.CellSize; // Use centralized cell size
+        private const float CellSizeLayer1 = Constants.CellSizeLayer1; // Use centralized cell size
+        private const float CellSizeLayer2 = Constants.CellSizeLayer2;
 
         private List<Texture2D> cellTextures;
 
         private Random random; // Private Random instance
 
-        private const float NormalSoundIntensity = Constants.NormalSoundIntensity; // Define as needed
-        private const float MidSoundIntensity = Constants.MidSoundIntensity;    // Define as needed
+        private int generationCount = 0;
 
         public GameOfLife(GraphicsDevice graphicsDevice, List<Texture2D> cellTextures, int initialCellCount = 50)
         {
@@ -52,38 +52,38 @@ namespace MigrantsExhibition.Src
 
         public void Update(GameTime gameTime, float soundIntensity)
         {
-            // Update each cell's position and behavior
-            foreach (var cell in cells)
+            // Update cell states based on rules
+            ApplyRules(soundIntensity);
+
+            // Increment generation count
+            generationCount++;
+
+            // Check if after 3 generations, live cells <=15%, then generate new cells
+            if (generationCount >= 3)
             {
-                // Clamp soundIntensity to [0.0f, 1.0f]
-                float clampedSoundIntensity = MathHelper.Clamp(soundIntensity, 0.0f, 1.0f);
+                float totalPossibleCellsLayer1 = (graphicsDevice.Viewport.Width / CellSizeLayer1) * (graphicsDevice.Viewport.Height / CellSizeLayer1);
+                float totalPossibleCellsLayer2 = (graphicsDevice.Viewport.Width / CellSizeLayer2) * (graphicsDevice.Viewport.Height / CellSizeLayer2);
+                float totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2;
 
-                // Determine if sound intensity is above normal
-                bool isAboveNormal = clampedSoundIntensity >= NormalSoundIntensity;
+                float currentLiveCellsPercentage = (cells.Count / totalPossibleCells) * 100f;
 
-                // Update cell with clamped sound intensity
-                cell.Update(gameTime, clampedSoundIntensity, isAboveNormal, MidSoundIntensity);
+                if (currentLiveCellsPercentage <= Constants.MinLiveCellsPercentage)
+                {
+                    GenerateRandomCells(soundIntensity);
+                    generationCount = 0; // Reset generation count after replenishment
+                }
             }
-
-            // Apply Game of Life rules
-            ApplyRules();
-
-            // Ensure minimum cell population
-            EnsureMinimumPopulation();
-
-            // Remove cells that have completed their zoom-out animation
-            RemoveDyingCells();
         }
 
-        private void ApplyRules()
+        private void ApplyRules(float soundIntensity)
         {
             neighborCounts.Clear();
 
             // Count neighbors
             foreach (var cell in cells)
             {
-                int x = (int)(cell.Position.X / CellSize); // Grid position
-                int y = (int)(cell.Position.Y / CellSize);
+                int x = (int)(cell.Position.X / GetLayerCellSize(cell.Layer)); // Grid position
+                int y = (int)(cell.Position.Y / GetLayerCellSize(cell.Layer));
 
                 for (int dx = -1; dx <= 1; dx++)
                 {
@@ -95,8 +95,8 @@ namespace MigrantsExhibition.Src
                         int ny = y + dy;
 
                         // Wrap around the screen edges
-                        int gridWidth = graphicsDevice.Viewport.Width / (int)CellSize;
-                        int gridHeight = graphicsDevice.Viewport.Height / (int)CellSize;
+                        int gridWidth = (int)(graphicsDevice.Viewport.Width / GetLayerCellSize(cell.Layer));
+                        int gridHeight = (int)(graphicsDevice.Viewport.Height / GetLayerCellSize(cell.Layer));
 
                         nx = (nx + gridWidth) % gridWidth;
                         ny = (ny + gridHeight) % gridHeight;
@@ -116,8 +116,8 @@ namespace MigrantsExhibition.Src
 
             foreach (var cell in cells)
             {
-                int x = (int)(cell.Position.X / CellSize);
-                int y = (int)(cell.Position.Y / CellSize);
+                int x = (int)(cell.Position.X / GetLayerCellSize(cell.Layer));
+                int y = (int)(cell.Position.Y / GetLayerCellSize(cell.Layer));
                 var key = (x, y);
 
                 if (neighborCounts.ContainsKey(key))
@@ -142,8 +142,10 @@ namespace MigrantsExhibition.Src
                 }
             }
 
-            // Birth of new cells
+            // Birth of new cells based on sound intensity
             List<Cell> bornCells = new List<Cell>();
+            double birthProbability = GetBirthProbability(soundIntensity);
+
             foreach (var kvp in neighborCounts)
             {
                 var position = kvp.Key;
@@ -152,29 +154,40 @@ namespace MigrantsExhibition.Src
                 if (count == 3)
                 {
                     // Check if cell already exists at this position
-                    bool exists = cells.Exists(c => (int)(c.Position.X / CellSize) == position.Item1 && (int)(c.Position.Y / CellSize) == position.Item2);
+                    bool exists = cells.Exists(c =>
+                        (int)(c.Position.X / GetLayerCellSize(c.Layer)) == position.Item1 &&
+                        (int)(c.Position.Y / GetLayerCellSize(c.Layer)) == position.Item2);
                     if (!exists)
                     {
-                        // Spawn a new cell at this grid position
-                        Vector2 newPosition = new Vector2(position.Item1 * CellSize + CellSize / 2, position.Item2 * CellSize + CellSize / 2); // Center of the grid cell
-                        Vector2 direction = new Vector2((float)random.NextDouble() * 2 - 1, (float)random.NextDouble() * 2 - 1);
-                        direction.Normalize();
-                        float speed = Constants.BaseSpeed; // Use centralized speed
-
-                        // Assign depth based on desired layering
-                        float depth = AssignDepth();
-
-                        // Ensure cellTextures is not empty
-                        if (cellTextures.Count > 0)
+                        // Decide whether to spawn a new cell based on birth probability
+                        if (random.NextDouble() <= birthProbability)
                         {
+                            // Random layer assignment
+                            int layer = random.Next(1, Constants.TotalLayers + 1);
+
+                            // Select a random texture
                             Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
-                            Cell newCell = new Cell(texture, newPosition, direction, speed, graphicsDevice, depth);
+
+                            // Spawn a new cell at this grid position
+                            float layerCellSize = GetLayerCellSize(layer);
+                            Vector2 newPosition = new Vector2(position.Item1 * layerCellSize + layerCellSize / 2, position.Item2 * layerCellSize + layerCellSize / 2); // Center of the grid cell
+                            Vector2 direction = new Vector2((float)random.NextDouble() * 2 - 1, (float)random.NextDouble() * 2 - 1);
+                            direction.Normalize();
+
+                            // Assign depth based on layer
+                            float depth = layer switch
+                            {
+                                1 => 0.3f,
+                                2 => 0.6f,
+                                3 => 0.9f,
+                                _ => 0.5f,
+                            };
+
+                            // Create and add the new cell
+                            Cell newCell = new Cell(texture, newPosition, direction, layer, graphicsDevice, depth);
+                            newCell.IsBorn = true; // Trigger zoom-in animation
                             bornCells.Add(newCell);
-                            Utils.LogInfo($"Born new cell at position ({newPosition.X}, {newPosition.Y}) with depth {depth}.");
-                        }
-                        else
-                        {
-                            Utils.LogError("cellTextures list is empty. Cannot spawn new cells.");
+                            Utils.LogInfo($"Born new cell at position ({newPosition.X}, {newPosition.Y}) in Layer {layer} with Depth {depth}.");
                         }
                     }
                 }
@@ -189,83 +202,73 @@ namespace MigrantsExhibition.Src
             Utils.LogInfo($"GameOfLife updated: {cells.Count} cells present.");
         }
 
-        private float AssignDepth()
+        private float GetLayerCellSize(int layer)
         {
-            double depthRandom = random.NextDouble();
-            float depth;
-            if (depthRandom < 0.1)
-                depth = 0.1f; // Foreground layer 1
-            else if (depthRandom < 0.3)
-                depth = 0.3f; // Foreground layer 2
-            else if (depthRandom < 0.6)
-                depth = 0.6f; // Background layer 1
-            else
-                depth = 0.9f; // Background layer 2
-            return depth;
+            return layer switch
+            {
+                1 => Constants.CellSizeLayer1,
+                2 => Constants.CellSizeLayer2,
+                3 => Constants.CellSizeLayer2 * 0.9f, // Adjust as needed
+                _ => Constants.CellSizeLayer1,
+            };
         }
 
-        private void EnsureMinimumPopulation()
+        private double GetBirthProbability(float soundIntensity)
         {
-            int minimumCells = (int)(initialCellCount * 0.2f); // 20% of initial cells
-            if (cells.Count < minimumCells)
-            {
-                int cellsToAdd = minimumCells - cells.Count;
-                Utils.LogInfo($"Cell count below minimum. Adding {cellsToAdd} cells.");
+            // Map sound intensity from 1-100 to 0-1
+            float normalizedSound = MathHelper.Clamp(soundIntensity / 100f, 0f, 1f);
 
-                for (int i = 0; i < cellsToAdd; i++)
-                {
-                    if (cellTextures.Count == 0)
-                    {
-                        Utils.LogError("No cell textures available to add.");
-                        break;
-                    }
+            // Higher sound intensity increases birth probability
+            // Example: At 20% sound, base probability; increases by 7% per 10% sound above 20%
+            if (normalizedSound < (Constants.SoundThresholdMedium / 100f))
+                return 0.0; // No additional births
 
-                    // Select a random texture
-                    Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
-
-                    // Random position within the viewport
-                    Vector2 position = new Vector2(
-                        random.Next(0, graphicsDevice.Viewport.Width),
-                        random.Next(0, graphicsDevice.Viewport.Height)
-                    );
-
-                    // Random direction
-                    Vector2 direction = new Vector2(
-                        (float)random.NextDouble() * 2 - 1,
-                        (float)random.NextDouble() * 2 - 1
-                    );
-                    direction.Normalize();
-
-                    // Assign depth: 10% chance for foreground layers, 90% for background layers
-                    float depth = AssignDepth();
-
-                    // Create and add the new cell with depth
-                    Cell newCell = new Cell(texture, position, direction, Constants.BaseSpeed, graphicsDevice, depth);
-                    newCell.IsBorn = true; // Trigger zoom-in animation
-                    cells.Add(newCell);
-                    Utils.LogInfo($"Added new cell to maintain population: Position=({position.X}, {position.Y}), Depth={depth}.");
-                }
-
-                Utils.LogInfo($"Added {cellsToAdd} cells to maintain minimum population. Total cells: {cells.Count}");
-            }
+            double additionalProbability = ((normalizedSound * 100f - Constants.SoundThresholdMedium) / 10f) * Constants.GenerationIntervalIncreasePer10Sound;
+            return Math.Min(additionalProbability, 0.35); // Cap at 35% probability
         }
 
-        private void RemoveDyingCells()
+        private void GenerateRandomCells(float soundIntensity)
         {
-            List<Cell> cellsToRemove = new List<Cell>();
-            foreach (var cell in cells)
+            int cellsToAdd = (int)((graphicsDevice.Viewport.Width * graphicsDevice.Viewport.Height) / (Constants.CellSizeLayer1 * Constants.CellSizeLayer1) * 0.15f); // 15% of total possible cells
+
+            for (int i = 0; i < cellsToAdd; i++)
             {
-                if (cell.IsDying && cell.Scale <= 0.0f)
+                // Random layer assignment
+                int layer = random.Next(1, Constants.TotalLayers + 1);
+
+                // Select a random texture
+                Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
+
+                // Random position within the viewport
+                Vector2 position = new Vector2(
+                    random.Next(0, graphicsDevice.Viewport.Width),
+                    random.Next(0, graphicsDevice.Viewport.Height)
+                );
+
+                // Random direction (not used for movement)
+                Vector2 direction = new Vector2(
+                    (float)random.NextDouble() * 2 - 1,
+                    (float)random.NextDouble() * 2 - 1
+                );
+                direction.Normalize();
+
+                // Assign depth based on layer
+                float depth = layer switch
                 {
-                    cellsToRemove.Add(cell);
-                    Utils.LogInfo($"Removing cell at ({cell.Position.X}, {cell.Position.Y}) after death animation.");
-                }
+                    1 => 0.3f,
+                    2 => 0.6f,
+                    3 => 0.9f,
+                    _ => 0.5f,
+                };
+
+                // Create and add the new cell
+                Cell newCell = new Cell(texture, position, direction, layer, graphicsDevice, depth);
+                newCell.IsBorn = true; // Trigger zoom-in animation
+                cells.Add(newCell);
+                Utils.LogInfo($"Added random cell at position ({position.X}, {position.Y}) in Layer {layer} with Depth {depth}.");
             }
 
-            foreach (var cell in cellsToRemove)
-            {
-                cells.Remove(cell);
-            }
+            Utils.LogInfo($"Generated {cellsToAdd} random cells to maintain population.");
         }
 
         public void Draw(SpriteBatch spriteBatch)

@@ -13,17 +13,10 @@ namespace MigrantsExhibition.Src
         public float Speed { get; set; }
         public float Scale { get; set; }
         public float Depth { get; private set; } // 0.0f (foreground) to 1.0f (background)
+        public int Layer { get; private set; } // 1, 2, 3
 
         private GraphicsDevice graphicsDevice;
-
-        private const float MaxSize = Constants.CellSize; // Use centralized cell size
-        private float originalWidth;
-        private float originalHeight;
-
-        public Vector2 Acceleration { get; set; } = Vector2.Zero;
-
-        public float BaseSpeed { get; private set; } = Constants.BaseSpeed; // Further reduced base speed
-        public float MaxSpeed { get; private set; } = Constants.MaxSpeed;  // Further reduced maximum speed
+        private static Texture2D shadowTexture;
 
         private static readonly Random random = new Random();
 
@@ -32,86 +25,52 @@ namespace MigrantsExhibition.Src
         public bool IsDying { get; private set; } = false; // Indicates if the cell is dying
 
         private float birthScale = 0.0f; // Initial scale for the zoom-in effect
-        private const float BirthScaleIncrement = Constants.BirthScaleIncrement; // Zoom-in increment per update
+        private const float BirthScaleIncrement = 0.02f; // Zoom-in increment per update
 
         private float deathScale = 1.0f; // Initial scale for the zoom-out effect
-        private const float DeathScaleDecrement = Constants.DeathScaleDecrement; // Zoom-out decrement per update
+        private const float DeathScaleDecrement = 0.02f; // Zoom-out decrement per update
 
-        public Cell(Texture2D texture, Vector2 position, Vector2 direction, float speed, GraphicsDevice graphicsDevice, float depth = 0.5f)
+        public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
             Texture = texture;
             Position = position;
             Direction = direction;
-            Speed = speed;
-            BaseSpeed = speed; // Ensure BaseSpeed reflects the initial speed
-            MaxSpeed = Constants.MaxSpeed; // Use centralized max speed
-            Scale = 0.0f; // Start with scale 0 for zoom-in
-            this.graphicsDevice = graphicsDevice;
+            Layer = layer;
             Depth = MathHelper.Clamp(depth, 0.0f, 1.0f); // Ensure depth is between 0 and 1
+            this.graphicsDevice = graphicsDevice;
 
-            originalWidth = Texture.Width;
-            originalHeight = Texture.Height;
-            Utils.LogInfo($"Cell created at ({Position.X}, {Position.Y}) with depth {Depth}.");
+            // Assign speed based on layer
+            switch (Layer)
+            {
+                case 1:
+                    Speed = 0f; // No inherent movement; movement simulated via cell generation
+                    break;
+                case 2:
+                    Speed = 0f; // No inherent movement
+                    break;
+                case 3:
+                    Speed = 0f; // No inherent movement
+                    break;
+                default:
+                    Speed = 0f;
+                    break;
+            }
+
+            Scale = 0.0f; // Start with scale 0 for zoom-in
+
+            // Initialize shadow texture if Layer 1 and not already initialized
+            if (Layer == 1 && shadowTexture == null)
+            {
+                shadowTexture = CreateShadowTexture(graphicsDevice, 20); // 20px shadow
+                Utils.LogInfo("Shadow texture created for Layer 1 cells.");
+            }
+
+            Utils.LogInfo($"Cell created at ({Position.X}, {Position.Y}) in Layer {Layer} with Depth {Depth}.");
         }
 
-        public void Update(GameTime gameTime, float soundIntensity, bool isAboveNormal, float midSoundIntensity)
+        public void Update(GameTime gameTime, float soundIntensity)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            // Adjust Speed based on soundIntensity
-            Speed = MathHelper.Lerp(BaseSpeed, BaseSpeed + (MaxSpeed - BaseSpeed) * 0.5f, soundIntensity);
-
-            Position += Direction * Speed * deltaTime;
-
-            // Screen wrapping
-            WrapAround();
-
-            // Vibration and scaling based on sound intensity
-            if (soundIntensity > 0.1f) // Adjust threshold as needed
-            {
-                // Vibration effect proportional to soundIntensity and layer depth
-                float vibration = soundIntensity * Constants.VibrationMultiplier * (1.0f - Depth); // Use centralized vibration multiplier
-                float oscillation = (float)Math.Sin(gameTime.TotalGameTime.TotalSeconds * 20) * vibration;
-
-                // Apply vibration
-                float newX = Position.X + oscillation;
-                float newY = Position.Y + oscillation;
-                Position = new Vector2(newX, newY);
-
-                // Scaling effect based on depth
-                float targetScale = 1.0f + (soundIntensity * 0.5f); // Adjusted for subtle scaling
-
-                // Calculate the scale to ensure the largest dimension is CellSize
-                float scaleX = (MaxSize / originalWidth) * (1.0f - Depth) + 1.0f; // Foreground cells can scale more
-                float scaleY = (MaxSize / originalHeight) * (1.0f - Depth) + 1.0f;
-                float maxScale = Math.Min(scaleX, scaleY); // To maintain aspect ratio
-
-                // Clamp the targetScale to not exceed maxScale
-                Scale = MathHelper.Clamp(targetScale, 1.0f, maxScale);
-
-                Utils.LogInfo($"Cell at ({Position.X}, {Position.Y}) updated with Scale={Scale}.");
-            }
-            else
-            {
-                // Smoothly return to original scale
-                Scale = MathHelper.Lerp(Scale, 1.0f, 0.05f);
-            }
-
-            // Layer-based vibration scaling
-            if (isAboveNormal && soundIntensity >= midSoundIntensity)
-            {
-                // Apply additional random vibration influenced by depth
-                float vibrationAmplitude = (soundIntensity - midSoundIntensity) * (Constants.LayerVibrationMultiplier * (1.0f - Depth)); // Use centralized layer vibration multiplier
-                float randomOffsetX = ((float)random.NextDouble() * 2 - 1) * vibrationAmplitude;
-                float randomOffsetY = ((float)random.NextDouble() * 2 - 1) * vibrationAmplitude;
-                Position += new Vector2(randomOffsetX, randomOffsetY);
-
-                Utils.LogInfo($"Cell at ({Position.X}, {Position.Y}) is vibrating due to high sound intensity.");
-            }
-            else
-            {
-                // No additional vibration; ensure position remains stable
-            }
 
             // Handle zoom-in animation for newly born cells
             if (IsBorn)
@@ -137,6 +96,23 @@ namespace MigrantsExhibition.Src
                 }
                 Scale = MathHelper.Lerp(Scale, 0.0f, DeathScaleDecrement);
             }
+
+            // Handle vibration based on sound intensity
+            if (soundIntensity >= Constants.SoundThresholdHigh)
+            {
+                Vibrate(soundIntensity, deltaTime);
+            }
+        }
+
+        private void Vibrate(float soundIntensity, float deltaTime)
+        {
+            float vibrationAmount = (soundIntensity / 100f) * Constants.VibrationIntensityHigh * deltaTime;
+            float offsetX = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
+            float offsetY = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
+            Position += new Vector2(offsetX, offsetY);
+
+            // Ensure the cell stays within screen bounds
+            WrapAround();
         }
 
         private void WrapAround()
@@ -150,24 +126,20 @@ namespace MigrantsExhibition.Src
             if (Position.X < leftBound)
             {
                 Position = new Vector2(Position.X + rightBound, Position.Y);
-                // Optionally, spawn a new cell entering from the opposite side
             }
             if (Position.X > rightBound)
             {
                 Position = new Vector2(Position.X - rightBound, Position.Y);
-                // Optionally, spawn a new cell entering from the opposite side
             }
 
             // Vertical wrap-around
             if (Position.Y < topBound)
             {
                 Position = new Vector2(Position.X, Position.Y + bottomBound);
-                // Optionally, spawn a new cell entering from the opposite side
             }
             if (Position.Y > bottomBound)
             {
                 Position = new Vector2(Position.X, Position.Y - bottomBound);
-                // Optionally, spawn a new cell entering from the opposite side
             }
         }
 
@@ -176,15 +148,55 @@ namespace MigrantsExhibition.Src
             IsDying = true;
         }
 
-        // Draw the cell
+        // Create a simple circular shadow texture
+        private Texture2D CreateShadowTexture(GraphicsDevice graphicsDevice, int diameter)
+        {
+            Texture2D texture = new Texture2D(graphicsDevice, diameter, diameter);
+            Color[] colorData = new Color[diameter * diameter];
+
+            float radius = diameter / 2f;
+            float radiussq = radius * radius;
+
+            for (int y = 0; y < diameter; y++)
+            {
+                for (int x = 0; x < diameter; x++)
+                {
+                    int index = y * diameter + x;
+                    Vector2 pos = new Vector2(x - radius, y - radius);
+                    if (pos.LengthSquared() <= radiussq)
+                    {
+                        float alpha = 1.0f - (pos.Length() / radius); // Fade out towards edges
+                        colorData[index] = new Color(0, 0, 0, alpha * 0.5f); // Semi-transparent black
+                    }
+                    else
+                    {
+                        colorData[index] = Color.Transparent;
+                    }
+                }
+            }
+
+            texture.SetData(colorData);
+            return texture;
+        }
+
+        // Draw the cell with optional shadow
         public void Draw(SpriteBatch spriteBatch)
         {
-            // Define the destination rectangle with desired size (CellSize x CellSize)
+            // Determine cell size based on layer
+            float currentCellSize = Layer switch
+            {
+                1 => Constants.CellSizeLayer1,
+                2 => Constants.CellSizeLayer2,
+                3 => Constants.CellSizeLayer2 * 0.9f, // Adjust as needed
+                _ => Constants.CellSizeLayer1,
+            };
+
+            // Define the destination rectangle with desired size
             Rectangle destinationRectangle = new Rectangle(
-                (int)Position.X - (int)(Constants.CellSize / 2), // Center the cell
-                (int)Position.Y - (int)(Constants.CellSize / 2),
-                (int)Constants.CellSize, // Width
-                (int)Constants.CellSize  // Height
+                (int)Position.X - (int)(currentCellSize / 2),
+                (int)Position.Y - (int)(currentCellSize / 2),
+                (int)currentCellSize,
+                (int)currentCellSize
             );
 
             // Apply birth scaling
@@ -194,15 +206,50 @@ namespace MigrantsExhibition.Src
                 drawScale *= birthScale;
             }
 
-            // Adjust opacity based on depth
-            float opacity = MathHelper.Lerp(0.5f, 1.0f, 1.0f - Depth); // Closer layers are more opaque
+            // Adjust opacity based on constants and layer
+            Color cellColor = Layer switch
+            {
+                1 => Constants.Layer1Color,
+                2 => Constants.Layer2Color,
+                3 => Constants.Layer3Color,
+                _ => Color.White,
+            };
+
+            float opacity = Layer switch
+            {
+                1 => Constants.CellOpacity, // Fully opaque
+                2 => Constants.CellOpacity * Constants.LayerOpacityDifference, // 80% opaque
+                3 => Constants.CellOpacity * Constants.LayerOpacityDifference * 0.8f, // 64% opaque
+                _ => Constants.CellOpacity,
+            };
+
+            // Draw shadow for Layer 1 cells
+            if (Layer == 1 && shadowTexture != null)
+            {
+                Rectangle shadowRect = new Rectangle(
+                    destinationRectangle.X + (int)Constants.ShadowOffset, // Offset shadow slightly
+                    destinationRectangle.Y + (int)Constants.ShadowOffset,
+                    (int)(currentCellSize * 1.1f), // Slightly larger
+                    (int)(currentCellSize * 1.1f)
+                );
+                spriteBatch.Draw(
+                    shadowTexture,
+                    shadowRect,
+                    null,
+                    Color.Black * Constants.ShadowOpacity, // Semi-transparent shadow
+                    0f,
+                    Vector2.Zero,
+                    SpriteEffects.None,
+                    Depth + 0.001f // Ensure shadow is slightly behind the cell
+                );
+            }
 
             // Draw the texture scaled to CellSize with zoom-in/out effect and adjusted opacity
             spriteBatch.Draw(
                 Texture,
                 destinationRectangle,
                 null,
-                Color.White * opacity,
+                cellColor * opacity,
                 0f,
                 Vector2.Zero, // Origin is top-left since we're using a destination rectangle
                 SpriteEffects.None,

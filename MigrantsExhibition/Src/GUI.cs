@@ -11,10 +11,11 @@ namespace MigrantsExhibition.Src
         public SpriteFont Font { get; private set; }
         private Vector2 position;
         private Color textColor;
-        private float soundIntensity;
+        private float soundIntensity; // 1-100 scale
 
         private Texture2D rectTexture;
         private Texture2D fillTexture;
+        public Texture2D OverlayTexture { get; private set; }
 
         public GUI(ContentManager content, GraphicsDevice graphicsDevice)
         {
@@ -31,6 +32,10 @@ namespace MigrantsExhibition.Src
 
                 fillTexture = new Texture2D(graphicsDevice, 1, 1);
                 fillTexture.SetData(new[] { Color.Green });
+
+                // Create an overlay texture for initial fade-in
+                OverlayTexture = new Texture2D(graphicsDevice, 1, 1);
+                OverlayTexture.SetData(new[] { Color.Black });
 
                 Utils.LogInfo("GUI initialized successfully.");
             }
@@ -50,7 +55,7 @@ namespace MigrantsExhibition.Src
         {
             this.soundIntensity = soundIntensity;
             // Additional GUI updates can be implemented here
-            Utils.LogInfo($"GUI updated with Sound Intensity: {soundIntensity}");
+            Utils.LogInfo($"GUI updated with Sound Intensity: {soundIntensity:F2}%");
         }
 
         public void Draw(SpriteBatch spriteBatch)
@@ -59,7 +64,8 @@ namespace MigrantsExhibition.Src
             Vector2 meterPosition = new Vector2(10, 30);
             float meterWidth = Constants.SoundMeterWidth;
             float meterHeight = Constants.SoundMeterHeight;
-            float fillWidth = MathHelper.Clamp(meterWidth * soundIntensity, 0, meterWidth);
+            float normalizedSound = MathHelper.Clamp(soundIntensity / 100f, 0f, 1f);
+            float fillWidth = meterWidth * normalizedSound;
 
             // Draw meter background
             spriteBatch.Draw(rectTexture, new Rectangle((int)meterPosition.X, (int)meterPosition.Y, (int)meterWidth, (int)meterHeight), Color.Gray);
@@ -68,16 +74,17 @@ namespace MigrantsExhibition.Src
             spriteBatch.Draw(fillTexture, new Rectangle((int)meterPosition.X, (int)meterPosition.Y, (int)fillWidth, (int)meterHeight), Color.Green);
 
             // Draw sound intensity text
-            string soundText = $"Sound Intensity: {soundIntensity:F2}";
+            string soundText = $"Sound Intensity: {soundIntensity:F2}%";
             spriteBatch.DrawString(Font, soundText, new Vector2(10, 60), textColor);
 
-            Utils.LogInfo($"GUI drawn with Sound Intensity: {soundIntensity}");
+            Utils.LogInfo($"GUI drawn with Sound Intensity: {soundIntensity:F2}%");
         }
 
         public void Dispose()
         {
             rectTexture?.Dispose();
             fillTexture?.Dispose();
+            OverlayTexture?.Dispose();
             // Do not dispose of Font here if it's managed by ContentManager
             Utils.LogInfo("GUI disposed.");
         }

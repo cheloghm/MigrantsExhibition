@@ -121,6 +121,7 @@
     <None Remove="Content\Images\97.jpg" />
     <None Remove="Content\Images\98.jpg" />
     <None Remove="Content\Images\99.jpg" />
+    <None Remove="Dockerfile" />
     <None Remove="Fonts\arial.ttf" />
     <None Remove="Images\1.jpg" />
     <None Remove="Images\10.jpg" />
@@ -228,6 +229,9 @@
     <None Remove="Images\97.jpg" />
     <None Remove="Images\98.jpg" />
     <None Remove="Images\99.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Dockerfile" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Content\arial.spritefont">
