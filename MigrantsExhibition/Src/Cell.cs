@@ -11,7 +11,7 @@ namespace MigrantsExhibition.Src
         public Vector2 Position { get; set; }
         public Vector2 Direction { get; set; }
         public float Speed { get; set; }
-        public float Scale { get; set; }
+        public float Scale { get; set; } = 1.0f; // Cells are always drawn at full scale
         public float Depth { get; private set; } // 0.0f (foreground) to 1.0f (background)
         public int Layer { get; private set; } // 1, 2, 3
 
@@ -19,16 +19,6 @@ namespace MigrantsExhibition.Src
         private static Texture2D shadowTexture;
 
         private static readonly Random random = new Random();
-
-        // Animation Flags
-        public bool IsBorn { get; set; } = true; // Indicates if the cell is newly born
-        public bool IsDying { get; private set; } = false; // Indicates if the cell is dying
-
-        private float birthScale = 0.0f; // Initial scale for the zoom-in effect
-        private const float BirthScaleIncrement = 0.02f; // Zoom-in increment per update
-
-        private float deathScale = 1.0f; // Initial scale for the zoom-out effect
-        private const float DeathScaleDecrement = 0.02f; // Zoom-out decrement per update
 
         public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
@@ -40,73 +30,57 @@ namespace MigrantsExhibition.Src
             this.graphicsDevice = graphicsDevice;
 
             // Assign speed based on layer
-            switch (Layer)
-            {
-                case 1:
-                    Speed = 0f; // No inherent movement; movement simulated via cell generation
-                    break;
-                case 2:
-                    Speed = 0f; // No inherent movement
-                    break;
-                case 3:
-                    Speed = 0f; // No inherent movement
-                    break;
-                default:
-                    Speed = 0f;
-                    break;
-            }
+            Speed = 0f; // No inherent movement
 
-            Scale = 0.0f; // Start with scale 0 for zoom-in
+            // Cells are always at full scale
+            Scale = 1.0f;
 
             // Initialize shadow texture if Layer 1 and not already initialized
             if (Layer == 1 && shadowTexture == null)
             {
                 shadowTexture = CreateShadowTexture(graphicsDevice, 20); // 20px shadow
-                Utils.LogInfo("Shadow texture created for Layer 1 cells.");
             }
-
-            Utils.LogInfo($"Cell created at ({Position.X}, {Position.Y}) in Layer {Layer} with Depth {Depth}.");
         }
 
         public void Update(GameTime gameTime, float soundIntensity)
         {
-            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            // Handle zoom-in animation for newly born cells
-            if (IsBorn)
-            {
-                birthScale += BirthScaleIncrement;
-                if (birthScale >= 1.0f)
-                {
-                    birthScale = 1.0f;
-                    IsBorn = false; // Animation complete
-                }
-                Scale = MathHelper.Lerp(Scale, 1.0f, birthScale);
-            }
-
-            // Handle zoom-out animation for dying cells
-            if (IsDying)
-            {
-                deathScale -= DeathScaleDecrement;
-                if (deathScale <= 0.0f)
-                {
-                    deathScale = 0.0f;
-                    // Cell should be removed from the GameOfLife list
-                    // This will be handled in GameOfLife.cs
-                }
-                Scale = MathHelper.Lerp(Scale, 0.0f, DeathScaleDecrement);
-            }
-
             // Handle vibration based on sound intensity
             if (soundIntensity >= Constants.SoundThresholdHigh)
             {
-                Vibrate(soundIntensity, deltaTime);
+                Vibrate(soundIntensity, (float)gameTime.ElapsedGameTime.TotalSeconds);
+            }
+            else if (soundIntensity >= Constants.SoundThresholdLow && soundIntensity < Constants.SoundThresholdHigh)
+            {
+                // Vibration intensity scales between low and medium thresholds
+                Vibrate(soundIntensity, (float)gameTime.ElapsedGameTime.TotalSeconds);
+            }
+            else
+            {
+                // No vibration when sound intensity is below low threshold
             }
         }
 
+        // Src/Cell.cs
         private void Vibrate(float soundIntensity, float deltaTime)
         {
-            float vibrationAmount = (soundIntensity / 100f) * Constants.VibrationIntensityHigh * deltaTime;
+            float vibrationIntensity = 0f;
+
+            if (soundIntensity >= Constants.SoundThresholdHigh)
+            {
+                // Vibration intensity increases with sound intensity
+                float excessSound = soundIntensity - Constants.SoundThresholdHigh;
+                float normalizedExcessSound = excessSound / (100f - Constants.SoundThresholdHigh);
+                vibrationIntensity = Constants.CellVibrationIntensityHigh + normalizedExcessSound * (Constants.CellVibrationIntensityMax - Constants.CellVibrationIntensityHigh);
+            }
+            else if (soundIntensity >= Constants.SoundThresholdLow)
+            {
+                // Vibration intensity scales between low and high thresholds
+                float normalizedSound = (soundIntensity - Constants.SoundThresholdLow) / (Constants.SoundThresholdHigh - Constants.SoundThresholdLow);
+                vibrationIntensity = normalizedSound * Constants.CellVibrationIntensityMedium;
+            }
+
+            // Apply vibration
+            float vibrationAmount = (vibrationIntensity / 100f) * deltaTime * 100f;
             float offsetX = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
             float offsetY = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
             Position += new Vector2(offsetX, offsetY);
@@ -143,11 +117,6 @@ namespace MigrantsExhibition.Src
             }
         }
 
-        public void Die()
-        {
-            IsDying = true;
-        }
-
         // Create a simple circular shadow texture
         private Texture2D CreateShadowTexture(GraphicsDevice graphicsDevice, int diameter)
         {
@@ -166,7 +135,7 @@ namespace MigrantsExhibition.Src
                     if (pos.LengthSquared() <= radiussq)
                     {
                         float alpha = 1.0f - (pos.Length() / radius); // Fade out towards edges
-                        colorData[index] = new Color(0, 0, 0, alpha * 0.5f); // Semi-transparent black
+                        colorData[index] = new Color(0, 0, 0, alpha * Constants.ShadowOpacity);
                     }
                     else
                     {
@@ -187,24 +156,17 @@ namespace MigrantsExhibition.Src
             {
                 1 => Constants.CellSizeLayer1,
                 2 => Constants.CellSizeLayer2,
-                3 => Constants.CellSizeLayer2 * 0.9f, // Adjust as needed
+                3 => Constants.CellSizeLayer3,
                 _ => Constants.CellSizeLayer1,
             };
 
             // Define the destination rectangle with desired size
             Rectangle destinationRectangle = new Rectangle(
-                (int)Position.X - (int)(currentCellSize / 2),
-                (int)Position.Y - (int)(currentCellSize / 2),
-                (int)currentCellSize,
-                (int)currentCellSize
+                (int)(Position.X - (currentCellSize * Scale) / 2),
+                (int)(Position.Y - (currentCellSize * Scale) / 2),
+                (int)(currentCellSize * Scale),
+                (int)(currentCellSize * Scale)
             );
-
-            // Apply birth scaling
-            float drawScale = Scale;
-            if (IsBorn)
-            {
-                drawScale *= birthScale;
-            }
 
             // Adjust opacity based on constants and layer
             Color cellColor = Layer switch
@@ -217,9 +179,9 @@ namespace MigrantsExhibition.Src
 
             float opacity = Layer switch
             {
-                1 => Constants.CellOpacity, // Fully opaque
-                2 => Constants.CellOpacity * Constants.LayerOpacityDifference, // 80% opaque
-                3 => Constants.CellOpacity * Constants.LayerOpacityDifference * 0.8f, // 64% opaque
+                1 => Constants.CellOpacity,
+                2 => Constants.CellOpacity * Constants.LayerOpacityDifference,
+                3 => Constants.CellOpacity * Constants.LayerOpacityDifference * Constants.LayerOpacityDifference,
                 _ => Constants.CellOpacity,
             };
 
@@ -227,33 +189,33 @@ namespace MigrantsExhibition.Src
             if (Layer == 1 && shadowTexture != null)
             {
                 Rectangle shadowRect = new Rectangle(
-                    destinationRectangle.X + (int)Constants.ShadowOffset, // Offset shadow slightly
+                    destinationRectangle.X + (int)Constants.ShadowOffset,
                     destinationRectangle.Y + (int)Constants.ShadowOffset,
-                    (int)(currentCellSize * 1.1f), // Slightly larger
-                    (int)(currentCellSize * 1.1f)
+                    (int)(destinationRectangle.Width * 1.1f),
+                    (int)(destinationRectangle.Height * 1.1f)
                 );
                 spriteBatch.Draw(
                     shadowTexture,
                     shadowRect,
                     null,
-                    Color.Black * Constants.ShadowOpacity, // Semi-transparent shadow
+                    Color.Black * Constants.ShadowOpacity,
                     0f,
                     Vector2.Zero,
                     SpriteEffects.None,
-                    Depth + 0.001f // Ensure shadow is slightly behind the cell
+                    Depth + 0.001f
                 );
             }
 
-            // Draw the texture scaled to CellSize with zoom-in/out effect and adjusted opacity
+            // Draw the texture scaled to CellSize with adjusted opacity
             spriteBatch.Draw(
                 Texture,
                 destinationRectangle,
                 null,
                 cellColor * opacity,
                 0f,
-                Vector2.Zero, // Origin is top-left since we're using a destination rectangle
+                Vector2.Zero,
                 SpriteEffects.None,
-                Depth // Use Depth as layer depth
+                Depth
             );
         }
     }

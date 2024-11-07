@@ -20,14 +20,13 @@ namespace MigrantsExhibition
         private ImageLoader imageLoader;
         private List<Star> stars = new List<Star>();
         private List<Cell> cells = new List<Cell>();
-        private const int initialCellCount = 50;
-        private const int StarCount = 100;
+        private const int initialCellCount = Constants.InitialCellCount;
+        private const int StarCount = Constants.StarCountPerLayer;
         private double elapsedTime = 0;
         private int frameCount = 0;
         private float fps = 0f;
 
         private float soundIntensity = 0f; // Declared at class level
-        private double generationTimer = 0.0; // Timer for Game of Life generations
 
         private bool isFadingIn = true;
         private float fadeOpacity = 1.0f; // Start fully opaque
@@ -142,10 +141,17 @@ namespace MigrantsExhibition
 
         private void InitializeCells(List<Texture2D> cellTextures)
         {
-            // Calculate total possible cells based on screen size and CellSizeLayer2
-            int totalPossibleCellsLayer1 = (int)(GraphicsDevice.Viewport.Width / Constants.CellSizeLayer1) * (int)(GraphicsDevice.Viewport.Height / Constants.CellSizeLayer1);
-            int totalPossibleCellsLayer2 = (int)(GraphicsDevice.Viewport.Width / Constants.CellSizeLayer2) * (int)(GraphicsDevice.Viewport.Height / Constants.CellSizeLayer2);
-            int totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2;
+            // Cell sizes for each layer
+            float cellSizeLayer1 = Constants.CellSizeLayer1;
+            float cellSizeLayer2 = Constants.CellSizeLayer2;
+            float cellSizeLayer3 = Constants.CellSizeLayer3;
+
+            // Calculate total possible cells based on screen size and cell sizes
+            int totalPossibleCellsLayer1 = (int)(GraphicsDevice.Viewport.Width / cellSizeLayer1) * (int)(GraphicsDevice.Viewport.Height / cellSizeLayer1);
+            int totalPossibleCellsLayer2 = (int)(GraphicsDevice.Viewport.Width / cellSizeLayer2) * (int)(GraphicsDevice.Viewport.Height / cellSizeLayer2);
+            int totalPossibleCellsLayer3 = (int)(GraphicsDevice.Viewport.Width / cellSizeLayer3) * (int)(GraphicsDevice.Viewport.Height / cellSizeLayer3);
+
+            int totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2 + totalPossibleCellsLayer3;
 
             // Ensure at least initialCellCount live cells
             int initialLiveCells = Math.Max(initialCellCount, (int)(totalPossibleCells * 0.05f)); // 5% as initial
@@ -182,11 +188,8 @@ namespace MigrantsExhibition
 
                 // Create and add the new cell
                 Cell newCell = new Cell(texture, position, direction, layer, GraphicsDevice, depth);
-                newCell.IsBorn = false; // Ensure initial cells don't trigger zoom-in
                 cells.Add(newCell);
             }
-
-            Utils.LogInfo($"{initialLiveCells} cells initialized and added to the simulation.");
         }
 
         protected override void Update(GameTime gameTime)
@@ -221,18 +224,10 @@ namespace MigrantsExhibition
                     audioHandler.Update();
                     soundIntensity = audioHandler.GetSoundIntensity(); // Assign to class-level variable
 
-                    // Update generation timer
-                    generationTimer += gameTime.ElapsedGameTime.TotalSeconds;
-                    if (generationTimer >= GetCurrentGenerationInterval())
+                    // Update GameOfLife with sound intensity
+                    if (gameOfLife != null)
                     {
-                        // Update GameOfLife with sound intensity
-                        if (gameOfLife != null)
-                        {
-                            gameOfLife.Update(gameTime, soundIntensity);
-                        }
-
-                        // Reset generation timer
-                        generationTimer = 0.0;
+                        gameOfLife.Update(gameTime, soundIntensity);
                     }
 
                     // Update GUI with sound intensity
@@ -250,12 +245,6 @@ namespace MigrantsExhibition
                 foreach (var star in stars)
                 {
                     star.Update(gameTime, soundIntensity);
-                }
-
-                // Update cells with sound intensity
-                foreach (var cell in cells)
-                {
-                    cell.Update(gameTime, soundIntensity);
                 }
 
                 // Handle initial fade-in
@@ -329,32 +318,6 @@ namespace MigrantsExhibition
                 ShowWindow(handle, SW_MINIMIZE);
                 Utils.LogInfo("Window Minimized.");
             }
-        }
-
-        private double GetCurrentGenerationInterval()
-        {
-            // Map sound intensity from 1-100 to appropriate interval
-            // Lower sound intensity -> slower generations
-            // Higher sound intensity -> faster generations
-
-            if (soundIntensity <= Constants.SoundThresholdLow)
-            {
-                return Constants.GenerationIntervalLow; // 1 generation per second
-            }
-            else if (soundIntensity >= Constants.SoundThresholdMedium && soundIntensity < Constants.SoundThresholdHigh)
-            {
-                // Decrease interval based on sound intensity
-                // For every 10% increase above medium, decrease interval by 7%
-                float excessSound = soundIntensity - Constants.SoundThresholdMedium;
-                double decreaseFactor = (excessSound / 10f) * Constants.GenerationIntervalIncreasePer10Sound;
-                double newInterval = Constants.GenerationIntervalLow - decreaseFactor;
-                return Math.Max(newInterval, 0.1); // Prevent interval from becoming negative
-            }
-            else if (soundIntensity >= Constants.SoundThresholdHigh)
-            {
-                return Constants.GenerationIntervalHigh; // No generation
-            }
-            return Constants.GenerationIntervalLow;
         }
 
         protected override void Draw(GameTime gameTime)

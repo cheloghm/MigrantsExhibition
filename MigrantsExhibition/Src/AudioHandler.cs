@@ -1,55 +1,92 @@
-﻿// Src/AudioHandler.cs
-using NAudio.CoreAudioApi;
+﻿using NAudio.Wave;
 using System;
 
 namespace MigrantsExhibition.Src
 {
     public class AudioHandler : IDisposable
     {
-        private MMDeviceEnumerator deviceEnumerator;
-        private MMDevice device;
-        private AudioMeterInformation meter;
+        private WaveInEvent waveIn;
+        private float maxVolume;
+        private object lockObject = new object();
 
         public AudioHandler()
         {
-            deviceEnumerator = new MMDeviceEnumerator();
-            device = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            meter = device.AudioMeterInformation;
-            Utils.LogInfo("AudioHandler initialized.");
+            try
+            {
+                waveIn = new WaveInEvent();
+                waveIn.DeviceNumber = 0; // Default microphone
+                waveIn.WaveFormat = new WaveFormat(44100, 1); // Mono 44.1kHz
+
+                waveIn.DataAvailable += OnDataAvailable;
+
+                Utils.LogInfo($"AudioHandler initialized. Using device number: {waveIn.DeviceNumber}");
+            }
+            catch (Exception ex)
+            {
+                Utils.LogError($"Failed to initialize AudioHandler: {ex.Message}");
+            }
         }
 
         public bool Start()
         {
             try
             {
-                // Initialization successful
-                Utils.LogInfo("AudioHandler started successfully.");
+                waveIn.StartRecording();
+                Utils.LogInfo("AudioHandler started recording.");
                 return true;
             }
             catch (Exception ex)
             {
-                Utils.LogError($"AudioHandler failed to start: {ex.Message}");
+                Utils.LogError($"AudioHandler failed to start recording: {ex.Message}");
                 return false;
+            }
+        }
+
+        private void OnDataAvailable(object sender, WaveInEventArgs e)
+        {
+            float max = 0;
+
+            // Interpret the audio data as 16-bit PCM samples
+            for (int index = 0; index < e.BytesRecorded; index += 2)
+            {
+                // Combine two bytes into a 16-bit sample
+                short sample = (short)((e.Buffer[index + 1] << 8) | e.Buffer[index]);
+                // Normalize the sample to a value between -1 and 1
+                float sample32 = sample / 32768f;
+                // Take the absolute value
+                if (sample32 < 0) sample32 = -sample32;
+                // Keep track of the maximum sample value
+                if (sample32 > max) max = sample32;
+            }
+
+            lock (lockObject)
+            {
+                maxVolume = max;
             }
         }
 
         public void Update()
         {
-            // For future enhancements if needed
+            // Not needed in this implementation
         }
 
         public float GetSoundIntensity()
         {
-            // Get peak value of the first channel and map to 1-100 scale
-            float peak = meter.MasterPeakValue * 100f; // Map to 0-100 scale
-            return peak; // Returns a value between 0.0f and 100f
+            lock (lockObject)
+            {
+                return maxVolume * 100f; // Scale to 0-100%
+            }
         }
 
         public void Dispose()
         {
-            meter = null;
-            device.Dispose();
-            deviceEnumerator.Dispose();
+            if (waveIn != null)
+            {
+                waveIn.DataAvailable -= OnDataAvailable;
+                waveIn.StopRecording();
+                waveIn.Dispose();
+                waveIn = null;
+            }
             Utils.LogInfo("AudioHandler disposed.");
         }
     }

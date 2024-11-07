@@ -1,65 +1,206 @@
-﻿using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// Src/Constants.cs
+using Microsoft.Xna.Framework;
 
-// Src/Constants.cs
 namespace MigrantsExhibition.Src
 {
+    /// <summary>
+    /// Holds all modifiable constants for the MigrantsExhibition project.
+    /// Adjusting these values will change the behavior and appearance of the application.
+    /// </summary>
     public static class Constants
     {
-        // Cell/Image Settings
-        public const float CellSizeLayer1 = 60f; // Size for the first layer
-        public const float CellSizeLayer2 = CellSizeLayer1 * 0.9f; // 10% smaller than layer 1
+        // --- General Settings ---
+        /// <summary>
+        /// Target frames per second for the application.
+        /// Example: 60
+        /// </summary>
+        public const int TargetFPS = 6;
 
-        // Transparency Settings
-        public const float CellOpacity = 1.0f; // Opacity for live cells (1.0f = fully opaque)
-        public const float LayerOpacityDifference = 0.8f; // Layer 2 cells are 80% opaque compared to Layer 1
+        // --- Cell/Image Settings ---
+        /// <summary>
+        /// Base size of the cells.
+        /// Example: 60f
+        /// </summary>
+        public const float BaseCellSize = 30f;
 
-        // Movement and Frame Rate
-        public const int TargetFPS = 60; // Target frame rate
-        public const double GenerationIntervalLow = 1.0; // One generation per second at <=10% sound
-        public const double GenerationIntervalHigh = 0.0; // No generation at >=70% sound
-        public const double GenerationIntervalIncreasePer10Sound = 0.07; // 7% increase per 10% sound
+        /// <summary>
+        /// Size of cells in Layer 1.
+        /// Set to BaseCellSize by default.
+        /// Example: BaseCellSize (60f)
+        /// </summary>
+        public const float CellSizeLayer1 = BaseCellSize;
 
-        // Sound Intensity Thresholds (1-100 scale)
-        public const float SoundThresholdLow = 10f; // 10%
-        public const float SoundThresholdMedium = 20f; // 20%
-        public const float SoundThresholdHigh = 70f; // 70%
+        /// <summary>
+        /// Size of cells in Layer 2.
+        /// Set to BaseCellSize by default.
+        /// Example: BaseCellSize (60f)
+        /// </summary>
+        public const float CellSizeLayer2 = BaseCellSize;
 
-        // Cell Population Control
-        public const float MinLiveCellsPercentage = 15f; // Minimum 15% live cells
+        /// <summary>
+        /// Size of cells in Layer 3.
+        /// Set to BaseCellSize by default.
+        /// Example: BaseCellSize (60f)
+        /// </summary>
+        public const float CellSizeLayer3 = BaseCellSize;
 
-        // Vibration Parameters
-        public const float VibrationIntensityHigh = 10f; // Max vibration at >=70% sound
+        /// <summary>
+        /// Opacity for live cells (1.0f = fully opaque).
+        /// Example: 1.0f
+        /// </summary>
+        public const float CellOpacity = 1.0f;
 
-        // Layers
-        public const int TotalLayers = 3; // Three layers
+        /// <summary>
+        /// Opacity multiplier between layers.
+        /// Layer 2 cells are multiplied by this value compared to Layer 1.
+        /// Example: 0.8f (Layer 2 is 80% opaque compared to Layer 1)
+        /// </summary>
+        public const float LayerOpacityDifference = 0.8f;
 
-        // Fade-In Parameters
-        public const float FadeInDuration = 2.0f; // Fade-in duration in seconds
+        /// <summary>
+        /// Colors for each layer of cells.
+        /// Assign Color.Transparent if you don't want the layer to have a color.
+        /// Examples:
+        ///     Color.Cyan
+        ///     Color.MediumPurple
+        ///     Color.LightGreen
+        ///     Color.Transparent
+        ///     Color.White (to use original image colors)
+        /// </summary>
+        public static readonly Color Layer1Color = Color.White;
+        public static readonly Color Layer2Color = Color.White;
+        public static readonly Color Layer3Color = Color.White;
+        // To use the original image colors, assign Color.White
+        // To make a layer fully transparent (not visible), assign Color.Transparent
 
-        // GUI Parameters
-        public const int SoundMeterWidth = 200; // Width of the sound intensity meter
-        public const int SoundMeterHeight = 20; // Height of the sound intensity meter
+        // --- Sound Intensity Thresholds ---
+        /// <summary>
+        /// Sound intensity thresholds used to control behaviors.
+        /// Values are on a 1-100 scale.
+        /// Example: SoundThresholdLow = 10f
+        /// </summary>
+        public const float SoundThresholdLow = 10f;    // Below this, special behavior occurs
+        public const float SoundThresholdHigh = 75f;   // Above this, special behavior occurs
 
-        // Star Parameters
-        public const float StarBaseSpeedMultiplier = 15f; // Base speed multiplier for stars based on depth
-        public const float StarSoundIntensityMultiplier = 7f; // Speed increase based on sound intensity
-        public const float StarVibrationMultiplier = 3f; // Vibration strength for stars
+        // --- Game of Life Settings ---
+        /// <summary>
+        /// Minimum percentage of live cells on the screen.
+        /// Cells should not go below this percentage of the total possible cells.
+        /// Example: 10f
+        /// </summary>
+        public const float MinLiveCellsPercentage = 10f; // 10%
 
-        // Additional Parameters for Depth Illusion
-        public const float ShadowOffset = 5f; // Pixels to offset Layer 1 shadows
-        public const float GlowSizeMultiplier = 1.2f; // Multiplier for glow size
-        public const float Layer1Elevation = 5f; // Pixels to offset Layer 1 cells upward
-        public const float ShadowOpacity = 0.5f; // Opacity for shadows
-        public const float GlowOpacity = 0.5f; // Opacity for glows
+        /// <summary>
+        /// Maximum percentage of live cells on the screen.
+        /// Cells should not exceed this percentage when sound is low.
+        /// Example: 10f
+        /// </summary>
+        public const float MaxLiveCellsPercentage = 10f; // 10%
 
-        // Layer Colors
-        public static readonly Color Layer1Color = Color.Cyan;
-        public static readonly Color Layer2Color = Color.MediumPurple;
-        public static readonly Color Layer3Color = Color.LightGreen;
+        /// <summary>
+        /// The number of generations to wait before checking the live cell percentage.
+        /// Example: 3
+        /// </summary>
+        public const int GenerationsToCheckPopulation = 2;
+
+        /// <summary>
+        /// Maximum number of cells allowed in the simulation to prevent performance issues.
+        /// Example: 1000
+        /// </summary>
+        public const int MaxCells = 1000;
+
+        // --- Vibration Parameters ---
+        /// <summary>
+        /// Vibration intensity for cells when sound intensity is high (>=75%).
+        /// Increase this value to make cells shake more.
+        /// Example: 10f
+        /// </summary>
+        public const float CellVibrationIntensityHigh = 10f;
+
+        public const float CellVibrationIntensityMax = 20f; // Maximum vibration intensity at 100% sound intensity
+
+        /// <summary>
+        /// Vibration intensity for cells when sound intensity is between low and high thresholds.
+        /// Example: 5f
+        /// </summary>
+        public const float CellVibrationIntensityMedium = 5f;
+
+        /// <summary>
+        /// Vibration intensity for cells when sound intensity is low (<10%).
+        /// Example: 0f (No vibration)
+        /// </summary>
+        public const float CellVibrationIntensityLow = 0f; // No vibration
+
+        // --- Fade-In Parameters ---
+        /// <summary>
+        /// Duration of the initial fade-in effect in seconds.
+        /// Example: 2.0f
+        /// </summary>
+        public const float FadeInDuration = 2.0f;
+
+        // --- GUI Parameters ---
+        /// <summary>
+        /// Width of the sound intensity meter in pixels.
+        /// Example: 200
+        /// </summary>
+        public const int SoundMeterWidth = 200;
+
+        /// <summary>
+        /// Height of the sound intensity meter in pixels.
+        /// Example: 20
+        /// </summary>
+        public const int SoundMeterHeight = 20;
+
+        // --- Star Parameters ---
+        /// <summary>
+        /// Base speed multiplier for stars based on depth.
+        /// Adjust this to change the base speed of stars.
+        /// Example: 15f
+        /// </summary>
+        public const float StarBaseSpeedMultiplier = 15f;
+
+        /// <summary>
+        /// Speed increase for stars based on sound intensity.
+        /// Example: 7f
+        /// </summary>
+        public const float StarSoundIntensityMultiplier = 7f;
+
+        /// <summary>
+        /// Vibration strength for stars.
+        /// Example: 3f
+        /// </summary>
+        public const float StarVibrationMultiplier = 3f;
+
+        // --- Depth Illusion Parameters ---
+        /// <summary>
+        /// Pixels to offset Layer 1 shadows.
+        /// Example: 5f
+        /// </summary>
+        public const float ShadowOffset = 5f;
+
+        /// <summary>
+        /// Opacity for shadows (0.0f = fully transparent, 1.0f = fully opaque).
+        /// Example: 0.5f
+        /// </summary>
+        public const float ShadowOpacity = 0.5f;
+
+        // --- Other Parameters ---
+        /// <summary>
+        /// Total number of layers used in the application.
+        /// Example: 3
+        /// </summary>
+        public const int TotalLayers = 3;
+
+        /// <summary>
+        /// Initial number of cells to start with.
+        /// Example: 50
+        /// </summary>
+        public const int InitialCellCount = 50;
+
+        /// <summary>
+        /// Number of stars to create per layer.
+        /// Example: 100
+        /// </summary>
+        public const int StarCountPerLayer = 100;
     }
 }
