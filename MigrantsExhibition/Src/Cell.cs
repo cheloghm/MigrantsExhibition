@@ -9,21 +9,18 @@ namespace MigrantsExhibition.Src
     {
         public Texture2D Texture { get; private set; }
         public Vector2 Position { get; set; }
-        public Vector2 Direction { get; set; }
         public float Scale { get; set; } // Scale is modified for zoom-in/out
         public float Depth { get; private set; } // 0.0f (foreground) to 1.0f (background)
         public int Layer { get; private set; } // 1, 2, 3
 
         private GraphicsDevice graphicsDevice;
         private static Texture2D shadowTexture;
-
         private static readonly Random random = new Random();
 
         public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
             Texture = texture;
             Position = position;
-            Direction = direction;
             Layer = layer;
             Depth = MathHelper.Clamp(depth, 0.0f, 1.0f); // Ensure depth is between 0 and 1
             this.graphicsDevice = graphicsDevice;

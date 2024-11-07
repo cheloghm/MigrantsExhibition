@@ -121,10 +121,6 @@ namespace MigrantsExhibition
                 // Initialize cells with fixed size and depth
                 InitializeCells(cellTextures);
 
-                //// Initialize GameOfLife with cells
-                //gameOfLife.Initialize(cells);
-                //Utils.LogInfo("GameOfLife cells initialized.");
-
                 // Initialize GUI with Content Manager and GraphicsDevice
                 gui = new GUI(Content, GraphicsDevice);
                 Utils.LogInfo("GUI initialized.");

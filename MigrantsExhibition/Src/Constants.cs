@@ -21,7 +21,7 @@ namespace MigrantsExhibition.Src
         /// Base size of the cells.
         /// Example: 60f
         /// </summary>
-        public const float BaseCellSize = 60f;
+        public const float BaseCellSize = 50f;
 
         /// <summary>
         /// Size of cells in Layer 1.
@@ -35,14 +35,14 @@ namespace MigrantsExhibition.Src
         /// Set to BaseCellSize by default.
         /// Example: BaseCellSize (60f)
         /// </summary>
-        public const float CellSizeLayer2 = BaseCellSize;
+        public const float CellSizeLayer2 = BaseCellSize - 5f;
 
         /// <summary>
         /// Size of cells in Layer 3.
         /// Set to BaseCellSize by default.
         /// Example: BaseCellSize (60f)
         /// </summary>
-        public const float CellSizeLayer3 = BaseCellSize;
+        public const float CellSizeLayer3 = BaseCellSize - 10f;
 
         /// <summary>
         /// Opacity for live cells (1.0f = fully opaque).
@@ -68,8 +68,8 @@ namespace MigrantsExhibition.Src
         ///     Color.White (to use original image colors)
         /// </summary>
         public static readonly Color Layer1Color = Color.White;
-        public static readonly Color Layer2Color = Color.White;
-        public static readonly Color Layer3Color = Color.White;
+        public static readonly Color Layer2Color = Color.LightGray;
+        public static readonly Color Layer3Color = Color.Gray;
         // To use the original image colors, assign Color.White
         // To make a layer fully transparent (not visible), assign Color.Transparent
 
