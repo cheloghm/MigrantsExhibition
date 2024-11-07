@@ -115,15 +115,15 @@ namespace MigrantsExhibition
                 }
 
                 // Initialize GameOfLife with cellTextures
-                gameOfLife = new GameOfLife(GraphicsDevice, cellTextures, initialCellCount);
+                gameOfLife = new GameOfLife(GraphicsDevice, cellTextures);
                 Utils.LogInfo("GameOfLife initialized.");
 
                 // Initialize cells with fixed size and depth
                 InitializeCells(cellTextures);
 
-                // Initialize GameOfLife with cells
-                gameOfLife.Initialize(cells);
-                Utils.LogInfo("GameOfLife cells initialized.");
+                //// Initialize GameOfLife with cells
+                //gameOfLife.Initialize(cells);
+                //Utils.LogInfo("GameOfLife cells initialized.");
 
                 // Initialize GUI with Content Manager and GraphicsDevice
                 gui = new GUI(Content, GraphicsDevice);

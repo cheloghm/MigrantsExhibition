@@ -10,23 +10,18 @@ namespace MigrantsExhibition.Src
     public class GameOfLife : IDisposable
     {
         private GraphicsDevice graphicsDevice;
-        private List<Cell> cells;
-        private Dictionary<(int, int), int> neighborCounts;
-
-        private int initialCellCount;
-        private const float CellSizeLayer1 = Constants.CellSizeLayer1;
-        private const float CellSizeLayer2 = Constants.CellSizeLayer2;
-        private const float CellSizeLayer3 = Constants.CellSizeLayer3;
-
         private List<Texture2D> cellTextures;
-
         private Random random;
 
         private float generationTimer = 0f;
-        private const float MaxGenerationInterval = 2f; // Maximum interval in seconds
-        private const float MinGenerationInterval = 0.1f; // Minimum interval in seconds
+        private const float GenerationInterval = 0.1f; // Fixed interval in seconds
 
-        public GameOfLife(GraphicsDevice graphicsDevice, List<Texture2D> cellTextures, int initialCellCount = 50)
+        private int gridWidth;
+        private int gridHeight;
+        private Cell[,] grid;     // Current generation grid
+        private Cell[,] nextGrid; // Next generation grid
+
+        public GameOfLife(GraphicsDevice graphicsDevice, List<Texture2D> cellTextures)
         {
             if (cellTextures == null || cellTextures.Count == 0)
             {
@@ -35,241 +30,234 @@ namespace MigrantsExhibition.Src
 
             this.graphicsDevice = graphicsDevice;
             this.cellTextures = cellTextures;
-            this.cells = new List<Cell>();
-            this.neighborCounts = new Dictionary<(int, int), int>();
-            this.initialCellCount = initialCellCount;
             this.random = new Random();
-            Utils.LogInfo("GameOfLife constructor executed successfully.");
+
+            InitializeGrid();
+            Utils.LogInfo("GameOfLife initialized successfully.");
         }
 
-        public void Initialize(List<Cell> initialCells)
+        private void InitializeGrid()
         {
-            if (initialCells == null)
-            {
-                throw new ArgumentNullException(nameof(initialCells));
-            }
+            // Determine grid size based on base cell size and viewport dimensions
+            int cellSize = (int)Constants.BaseCellSize;
+            gridWidth = graphicsDevice.Viewport.Width / cellSize;
+            gridHeight = graphicsDevice.Viewport.Height / cellSize;
 
-            cells = initialCells;
-            Utils.LogInfo("GameOfLife cells set during initialization.");
+            grid = new Cell[gridWidth, gridHeight];
+            nextGrid = new Cell[gridWidth, gridHeight];
+
+            // Initialize the grid with random live cells
+            InitializeCells();
+        }
+
+        private void InitializeCells()
+        {
+            // Assume initial sound intensity is 50%
+            float initialSoundIntensity = 50f;
+            AdjustCellPopulation(initialSoundIntensity);
         }
 
         public void Update(GameTime gameTime, float soundIntensity)
         {
-            // Update the generation timer
             generationTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // Calculate the generation interval based on sound intensity
-            float generationInterval = MaxGenerationInterval - (soundIntensity / 100f) * (MaxGenerationInterval - MinGenerationInterval);
-
-            if (generationTimer >= generationInterval)
+            if (generationTimer >= GenerationInterval)
             {
+                // Adjust the cell population before applying the Game of Life rules
+                AdjustCellPopulation(soundIntensity);
+
                 // Apply Game of Life rules
                 ApplyRules();
-
-                // Adjust the number of live cells to match the sound intensity percentage
-                AdjustLiveCellsToMatchSoundIntensity(soundIntensity);
 
                 // Reset the timer
                 generationTimer = 0f;
             }
 
             // Update cells
-            foreach (var cell in cells)
+            for (int x = 0; x < gridWidth; x++)
             {
-                cell.Update(gameTime, soundIntensity);
-            }
-        }
-
-        private void AdjustLiveCellsToMatchSoundIntensity(float soundIntensity)
-        {
-            // Calculate total screen area
-            float totalScreenArea = graphicsDevice.Viewport.Width * graphicsDevice.Viewport.Height;
-
-            // Calculate desired cell area based on sound intensity
-            float desiredCellArea = totalScreenArea * (soundIntensity / 100f);
-
-            // Calculate average cell area (considering different layers)
-            float averageCellArea = (CellSizeLayer1 * CellSizeLayer1 + CellSizeLayer2 * CellSizeLayer2 + CellSizeLayer3 * CellSizeLayer3) / 3f;
-
-            // Calculate desired number of live cells
-            int desiredLiveCells = (int)(desiredCellArea / averageCellArea);
-
-            int currentLiveCells = cells.Count;
-
-            if (currentLiveCells > desiredLiveCells)
-            {
-                // Need to remove cells
-                int cellsToRemove = currentLiveCells - desiredLiveCells;
-                RemoveRandomCells(cellsToRemove);
-            }
-            else if (currentLiveCells < desiredLiveCells)
-            {
-                // Need to add cells
-                int cellsToAdd = desiredLiveCells - currentLiveCells;
-                GenerateRandomCells(cellsToAdd);
-            }
-        }
-
-        private void RemoveRandomCells(int cellsToRemove)
-        {
-            cellsToRemove = Math.Min(cellsToRemove, cells.Count);
-
-            for (int i = 0; i < cellsToRemove; i++)
-            {
-                int index = random.Next(cells.Count);
-                cells.RemoveAt(index);
-            }
-        }
-
-        private void GenerateRandomCells(int cellsToAdd)
-        {
-            for (int i = 0; i < cellsToAdd; i++)
-            {
-                // Random layer assignment (1, 2, or 3)
-                int layer = random.Next(1, Constants.TotalLayers + 1);
-
-                // Select a random texture
-                Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
-
-                // Random position within the viewport
-                Vector2 position = new Vector2(
-                    random.Next(0, graphicsDevice.Viewport.Width),
-                    random.Next(0, graphicsDevice.Viewport.Height)
-                );
-
-                // Random direction (not used for movement)
-                Vector2 direction = new Vector2(
-                    (float)random.NextDouble() * 2 - 1,
-                    (float)random.NextDouble() * 2 - 1
-                );
-                direction.Normalize();
-
-                // Assign depth based on layer
-                float depth = layer switch
+                for (int y = 0; y < gridHeight; y++)
                 {
-                    1 => 0.3f,
-                    2 => 0.6f,
-                    3 => 0.9f,
-                    _ => 0.5f,
-                };
-
-                // Create and add the new cell
-                Cell newCell = new Cell(texture, position, direction, layer, graphicsDevice, depth);
-                cells.Add(newCell);
+                    grid[x, y]?.Update(gameTime, soundIntensity);
+                }
             }
         }
 
-        private void ApplyRules()
+        private void AdjustCellPopulation(float soundIntensity)
         {
-            neighborCounts.Clear();
+            int totalCells = gridWidth * gridHeight;
+            int desiredLiveCells = (int)(totalCells * (soundIntensity / 100f));
 
-            // Count neighbors
-            foreach (var cell in cells)
+            // Collect positions of live and dead cells
+            List<(int x, int y)> liveCellsPositions = new List<(int x, int y)>();
+            List<(int x, int y)> deadCellsPositions = new List<(int x, int y)>();
+
+            for (int x = 0; x < gridWidth; x++)
             {
-                int x = (int)(cell.Position.X / GetLayerCellSize(cell.Layer));
-                int y = (int)(cell.Position.Y / GetLayerCellSize(cell.Layer));
-
-                for (int dx = -1; dx <= 1; dx++)
+                for (int y = 0; y < gridHeight; y++)
                 {
-                    for (int dy = -1; dy <= 1; dy++)
+                    if (grid[x, y] != null)
                     {
-                        if (dx == 0 && dy == 0) continue; // Skip the cell itself
-
-                        int nx = x + dx;
-                        int ny = y + dy;
-
-                        // Wrap around the screen edges
-                        int gridWidth = (int)(graphicsDevice.Viewport.Width / GetLayerCellSize(cell.Layer));
-                        int gridHeight = (int)(graphicsDevice.Viewport.Height / GetLayerCellSize(cell.Layer));
-
-                        nx = (nx + gridWidth) % gridWidth;
-                        ny = (ny + gridHeight) % gridHeight;
-
-                        var key = (nx, ny);
-                        if (neighborCounts.ContainsKey(key))
-                            neighborCounts[key]++;
-                        else
-                            neighborCounts[key] = 1;
+                        liveCellsPositions.Add((x, y));
+                    }
+                    else
+                    {
+                        deadCellsPositions.Add((x, y));
                     }
                 }
             }
 
-            // Determine which cells survive
-            List<Cell> newCells = new List<Cell>();
-            HashSet<(int, int)> positions = new HashSet<(int, int)>();
+            int currentLiveCells = liveCellsPositions.Count;
 
-            foreach (var cell in cells)
+            if (currentLiveCells > desiredLiveCells)
             {
-                int x = (int)(cell.Position.X / GetLayerCellSize(cell.Layer));
-                int y = (int)(cell.Position.Y / GetLayerCellSize(cell.Layer));
-                var key = (x, y);
-
-                int count = neighborCounts.ContainsKey(key) ? neighborCounts[key] : 0;
-
-                if (count == 2 || count == 3)
+                // Need to kill some cells
+                int cellsToKill = currentLiveCells - desiredLiveCells;
+                for (int i = 0; i < cellsToKill && liveCellsPositions.Count > 0; i++)
                 {
-                    // Cell survives
-                    newCells.Add(cell);
-                    positions.Add(key);
-                }
-                else
-                {
-                    // Cell dies
-                    // Do not add to newCells
+                    int index = random.Next(liveCellsPositions.Count);
+                    var pos = liveCellsPositions[index];
+                    grid[pos.x, pos.y] = null;
+                    liveCellsPositions.RemoveAt(index);
                 }
             }
-
-            // Birth of new cells according to Game of Life rules
-            foreach (var kvp in neighborCounts)
+            else if (currentLiveCells < desiredLiveCells)
             {
-                if (kvp.Value == 3 && !positions.Contains(kvp.Key))
+                // Need to revive some cells
+                int cellsToRevive = desiredLiveCells - currentLiveCells;
+                for (int i = 0; i < cellsToRevive && deadCellsPositions.Count > 0; i++)
                 {
+                    int index = random.Next(deadCellsPositions.Count);
+                    var pos = deadCellsPositions[index];
+
                     // Random layer assignment
                     int layer = random.Next(1, Constants.TotalLayers + 1);
 
                     // Select a random texture
                     Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
 
-                    // Spawn a new cell at this grid position
-                    float layerCellSize = GetLayerCellSize(layer);
-                    Vector2 newPosition = new Vector2(kvp.Key.Item1 * layerCellSize + layerCellSize / 2, kvp.Key.Item2 * layerCellSize + layerCellSize / 2);
-                    Vector2 direction = new Vector2((float)random.NextDouble() * 2 - 1, (float)random.NextDouble() * 2 - 1);
-                    direction.Normalize();
+                    // Calculate position based on grid coordinates
+                    Vector2 position = new Vector2(
+                        pos.x * Constants.BaseCellSize + Constants.BaseCellSize / 2,
+                        pos.y * Constants.BaseCellSize + Constants.BaseCellSize / 2
+                    );
 
-                    // Assign depth based on layer
-                    float depth = layer switch
+                    // Create and place the new cell
+                    Cell cell = new Cell(texture, position, Vector2.Zero, layer, graphicsDevice);
+                    grid[pos.x, pos.y] = cell;
+
+                    deadCellsPositions.RemoveAt(index);
+                }
+            }
+        }
+
+        private void ApplyRules()
+        {
+            // Clear nextGrid
+            Array.Clear(nextGrid, 0, nextGrid.Length);
+
+            for (int x = 0; x < gridWidth; x++)
+            {
+                for (int y = 0; y < gridHeight; y++)
+                {
+                    int liveNeighbors = CountLiveNeighbors(x, y);
+
+                    if (grid[x, y] != null)
                     {
-                        1 => 0.3f,
-                        2 => 0.6f,
-                        3 => 0.9f,
-                        _ => 0.5f,
-                    };
+                        // Cell is alive
+                        if (liveNeighbors == 2 || liveNeighbors == 3)
+                        {
+                            // Cell survives
+                            nextGrid[x, y] = grid[x, y];
+                        }
+                        else
+                        {
+                            // Cell dies
+                            nextGrid[x, y] = null;
+                        }
+                    }
+                    else
+                    {
+                        // Cell is dead
+                        if (liveNeighbors == 3)
+                        {
+                            // Cell becomes alive
+                            // Random layer assignment
+                            int layer = random.Next(1, Constants.TotalLayers + 1);
 
-                    // Create and add the new cell
-                    Cell newCell = new Cell(texture, newPosition, direction, layer, graphicsDevice, depth);
-                    newCells.Add(newCell);
-                    positions.Add(kvp.Key);
+                            // Select a random texture
+                            Texture2D texture = cellTextures[random.Next(cellTextures.Count)];
+
+                            // Calculate position based on grid coordinates
+                            Vector2 position = new Vector2(
+                                x * Constants.BaseCellSize + Constants.BaseCellSize / 2,
+                                y * Constants.BaseCellSize + Constants.BaseCellSize / 2
+                            );
+
+                            // Create and place the new cell
+                            Cell cell = new Cell(texture, position, Vector2.Zero, layer, graphicsDevice);
+                            nextGrid[x, y] = cell;
+                        }
+                        else
+                        {
+                            // Cell remains dead
+                            nextGrid[x, y] = null;
+                        }
+                    }
                 }
             }
 
-            cells = newCells;
+            // Swap grids
+            var temp = grid;
+            grid = nextGrid;
+            nextGrid = temp;
         }
 
-        private float GetLayerCellSize(int layer)
+        private int CountLiveNeighbors(int x, int y)
         {
-            return layer switch
+            int count = 0;
+            int width = gridWidth;
+            int height = gridHeight;
+
+            for (int dx = -1; dx <= 1; dx++)
             {
-                1 => CellSizeLayer1,
-                2 => CellSizeLayer2,
-                3 => CellSizeLayer3,
-                _ => CellSizeLayer1,
-            };
+                int nx = (x + dx + width) % width;
+
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    int ny = (y + dy + height) % height;
+
+                    if (dx == 0 && dy == 0)
+                        continue;
+
+                    if (grid[nx, ny] != null)
+                    {
+                        count++;
+                    }
+                }
+            }
+
+            return count;
         }
 
         public void Draw(SpriteBatch spriteBatch)
         {
+            // Collect all live cells
+            List<Cell> allCells = new List<Cell>();
+
+            for (int x = 0; x < gridWidth; x++)
+            {
+                for (int y = 0; y < gridHeight; y++)
+                {
+                    if (grid[x, y] != null)
+                    {
+                        allCells.Add(grid[x, y]);
+                    }
+                }
+            }
+
             // Sort cells by Depth (ascending)
-            var sortedCells = cells.OrderBy(c => c.Depth).ToList();
+            var sortedCells = allCells.OrderBy(c => c.Depth).ToList();
 
             foreach (var cell in sortedCells)
             {
