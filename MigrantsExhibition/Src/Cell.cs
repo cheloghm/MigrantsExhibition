@@ -10,8 +10,7 @@ namespace MigrantsExhibition.Src
         public Texture2D Texture { get; private set; }
         public Vector2 Position { get; set; }
         public Vector2 Direction { get; set; }
-        public float Speed { get; set; }
-        public float Scale { get; set; } = 1.0f; // Cells are always drawn at full scale
+        public float Scale { get; set; } // Scale is modified for zoom-in/out
         public float Depth { get; private set; } // 0.0f (foreground) to 1.0f (background)
         public int Layer { get; private set; } // 1, 2, 3
 
@@ -19,6 +18,12 @@ namespace MigrantsExhibition.Src
         private static Texture2D shadowTexture;
 
         private static readonly Random random = new Random();
+
+        // Animation Flags
+        public bool IsBorn { get; set; } = false; // Indicates if the cell is newly born
+
+        private float birthScale = 0.0f; // Initial scale for the zoom-in effect
+        private const float BirthScaleIncrement = 0.02f; // Zoom-in increment per update
 
         public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
@@ -28,9 +33,6 @@ namespace MigrantsExhibition.Src
             Layer = layer;
             Depth = MathHelper.Clamp(depth, 0.0f, 1.0f); // Ensure depth is between 0 and 1
             this.graphicsDevice = graphicsDevice;
-
-            // Assign speed based on layer
-            Speed = 0f; // No inherent movement
 
             // Cells are always at full scale
             Scale = 1.0f;
@@ -44,40 +46,37 @@ namespace MigrantsExhibition.Src
 
         public void Update(GameTime gameTime, float soundIntensity)
         {
-            // Handle vibration based on sound intensity
-            if (soundIntensity >= Constants.SoundThresholdHigh)
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Handle zoom-in animation for newly born cells
+            if (IsBorn)
             {
-                Vibrate(soundIntensity, (float)gameTime.ElapsedGameTime.TotalSeconds);
-            }
-            else if (soundIntensity >= Constants.SoundThresholdLow && soundIntensity < Constants.SoundThresholdHigh)
-            {
-                // Vibration intensity scales between low and medium thresholds
-                Vibrate(soundIntensity, (float)gameTime.ElapsedGameTime.TotalSeconds);
+                birthScale += BirthScaleIncrement;
+                if (birthScale >= 1.0f)
+                {
+                    birthScale = 1.0f;
+                    IsBorn = false; // Animation complete
+                }
+                Scale = birthScale;
             }
             else
             {
-                // No vibration when sound intensity is below low threshold
+                Scale = 1.0f;
+            }
+
+            // Handle vibration based on sound intensity
+            if (soundIntensity >= Constants.SoundThresholdHigh)
+            {
+                Vibrate(soundIntensity, deltaTime);
             }
         }
 
-        // Src/Cell.cs
         private void Vibrate(float soundIntensity, float deltaTime)
         {
-            float vibrationIntensity = 0f;
-
-            if (soundIntensity >= Constants.SoundThresholdHigh)
-            {
-                // Vibration intensity increases with sound intensity
-                float excessSound = soundIntensity - Constants.SoundThresholdHigh;
-                float normalizedExcessSound = excessSound / (100f - Constants.SoundThresholdHigh);
-                vibrationIntensity = Constants.CellVibrationIntensityHigh + normalizedExcessSound * (Constants.CellVibrationIntensityMax - Constants.CellVibrationIntensityHigh);
-            }
-            else if (soundIntensity >= Constants.SoundThresholdLow)
-            {
-                // Vibration intensity scales between low and high thresholds
-                float normalizedSound = (soundIntensity - Constants.SoundThresholdLow) / (Constants.SoundThresholdHigh - Constants.SoundThresholdLow);
-                vibrationIntensity = normalizedSound * Constants.CellVibrationIntensityMedium;
-            }
+            // Vibration intensity increases with sound intensity
+            float excessSound = soundIntensity - Constants.SoundThresholdHigh;
+            float normalizedExcessSound = excessSound / (100f - Constants.SoundThresholdHigh);
+            float vibrationIntensity = Constants.CellVibrationIntensityHigh + normalizedExcessSound * (Constants.CellVibrationIntensityMax - Constants.CellVibrationIntensityHigh);
 
             // Apply vibration
             float vibrationAmount = (vibrationIntensity / 100f) * deltaTime * 100f;

@@ -14,7 +14,7 @@ namespace MigrantsExhibition.Src
         /// Target frames per second for the application.
         /// Example: 60
         /// </summary>
-        public const int TargetFPS = 6;
+        public const int TargetFPS = 24;
 
         // --- Cell/Image Settings ---
         /// <summary>

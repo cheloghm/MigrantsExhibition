@@ -154,7 +154,7 @@ namespace MigrantsExhibition
             int totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2 + totalPossibleCellsLayer3;
 
             // Ensure at least initialCellCount live cells
-            int initialLiveCells = Math.Max(initialCellCount, (int)(totalPossibleCells * 0.05f)); // 5% as initial
+            int initialLiveCells = (int)(totalPossibleCells * (Constants.MinLiveCellsPercentage / 100f));
 
             for (int i = 0; i < initialLiveCells; i++)
             {
@@ -190,6 +190,17 @@ namespace MigrantsExhibition
                 Cell newCell = new Cell(texture, position, direction, layer, GraphicsDevice, depth);
                 cells.Add(newCell);
             }
+        }
+
+        private int GetTotalPossibleCells()
+        {
+            int totalPossibleCellsLayer1 = (GraphicsDevice.Viewport.Width / (int)Constants.CellSizeLayer1) * (GraphicsDevice.Viewport.Height / (int)Constants.CellSizeLayer1);
+            int totalPossibleCellsLayer2 = (GraphicsDevice.Viewport.Width / (int)Constants.CellSizeLayer2) * (GraphicsDevice.Viewport.Height / (int)Constants.CellSizeLayer2);
+            int totalPossibleCellsLayer3 = (GraphicsDevice.Viewport.Width / (int)Constants.CellSizeLayer3) * (GraphicsDevice.Viewport.Height / (int)Constants.CellSizeLayer3);
+
+            int totalPossibleCells = totalPossibleCellsLayer1 + totalPossibleCellsLayer2 + totalPossibleCellsLayer3;
+
+            return totalPossibleCells;
         }
 
         protected override void Update(GameTime gameTime)
