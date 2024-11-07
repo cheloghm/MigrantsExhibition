@@ -15,7 +15,6 @@ namespace MigrantsExhibition.Src
 
         private Texture2D rectTexture;
         private Texture2D fillTexture;
-        public Texture2D OverlayTexture { get; private set; }
 
         public GUI(ContentManager content, GraphicsDevice graphicsDevice)
         {
@@ -32,10 +31,6 @@ namespace MigrantsExhibition.Src
 
                 fillTexture = new Texture2D(graphicsDevice, 1, 1);
                 fillTexture.SetData(new[] { Color.Green });
-
-                // Create an overlay texture for initial fade-in
-                OverlayTexture = new Texture2D(graphicsDevice, 1, 1);
-                OverlayTexture.SetData(new[] { Color.Black });
 
                 Utils.LogInfo("GUI initialized successfully.");
             }
@@ -84,7 +79,6 @@ namespace MigrantsExhibition.Src
         {
             rectTexture?.Dispose();
             fillTexture?.Dispose();
-            OverlayTexture?.Dispose();
             // Do not dispose of Font here if it's managed by ContentManager
             Utils.LogInfo("GUI disposed.");
         }

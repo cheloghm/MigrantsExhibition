@@ -28,9 +28,6 @@ namespace MigrantsExhibition
 
         private float soundIntensity = 0f; // Declared at class level
 
-        private bool isFadingIn = true;
-        private float fadeOpacity = 1.0f; // Start fully opaque
-
         // P/Invoke declarations for window manipulation
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
@@ -258,18 +255,6 @@ namespace MigrantsExhibition
                     star.Update(gameTime, soundIntensity);
                 }
 
-                // Handle initial fade-in
-                if (isFadingIn)
-                {
-                    fadeOpacity -= (float)(gameTime.ElapsedGameTime.TotalSeconds / Constants.FadeInDuration);
-                    if (fadeOpacity <= 0f)
-                    {
-                        fadeOpacity = 0f;
-                        isFadingIn = false;
-                        Utils.LogInfo("Fade-in complete.");
-                    }
-                }
-
                 // Log sound intensity and FPS periodically
                 elapsedTime += gameTime.ElapsedGameTime.TotalSeconds;
                 frameCount++;
@@ -360,16 +345,6 @@ namespace MigrantsExhibition
                 // Draw FPS
                 string fpsText = $"FPS: {fps:F2}";
                 _spriteBatch.DrawString(gui.Font, fpsText, new Vector2(10, 60), Color.White);
-
-                // Draw initial fade-in overlay
-                if (isFadingIn)
-                {
-                    _spriteBatch.Draw(
-                        gui.OverlayTexture,
-                        new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height),
-                        Color.Black * fadeOpacity
-                    );
-                }
 
                 _spriteBatch.End();
 

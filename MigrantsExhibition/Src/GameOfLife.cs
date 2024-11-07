@@ -155,7 +155,6 @@ namespace MigrantsExhibition.Src
 
                 // Create and add the new cell
                 Cell newCell = new Cell(texture, position, direction, layer, graphicsDevice, depth);
-                newCell.IsBorn = true; // Trigger zoom-in animation
                 cells.Add(newCell);
             }
         }
@@ -248,7 +247,6 @@ namespace MigrantsExhibition.Src
 
                     // Create and add the new cell
                     Cell newCell = new Cell(texture, newPosition, direction, layer, graphicsDevice, depth);
-                    newCell.IsBorn = true; // Trigger zoom-in animation
                     newCells.Add(newCell);
                     positions.Add(kvp.Key);
                 }

@@ -19,12 +19,6 @@ namespace MigrantsExhibition.Src
 
         private static readonly Random random = new Random();
 
-        // Animation Flags
-        public bool IsBorn { get; set; } = false; // Indicates if the cell is newly born
-
-        private float birthScale = 0.0f; // Initial scale for the zoom-in effect
-        private const float BirthScaleIncrement = 0.02f; // Zoom-in increment per update
-
         public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
             Texture = texture;
@@ -47,22 +41,6 @@ namespace MigrantsExhibition.Src
         public void Update(GameTime gameTime, float soundIntensity)
         {
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            // Handle zoom-in animation for newly born cells
-            if (IsBorn)
-            {
-                birthScale += BirthScaleIncrement;
-                if (birthScale >= 1.0f)
-                {
-                    birthScale = 1.0f;
-                    IsBorn = false; // Animation complete
-                }
-                Scale = birthScale;
-            }
-            else
-            {
-                Scale = 1.0f;
-            }
 
             // Handle vibration based on sound intensity
             if (soundIntensity >= Constants.SoundThresholdHigh)
