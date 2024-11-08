@@ -21,7 +21,7 @@ namespace MigrantsExhibition.Src
         /// Base size of the cells.
         /// Example: 60f
         /// </summary>
-        public const float BaseCellSize = 50f;
+        public const float BaseCellSize = 60f;
 
         /// <summary>
         /// Size of cells in Layer 1.
@@ -80,7 +80,7 @@ namespace MigrantsExhibition.Src
         /// Example: SoundThresholdLow = 10f
         /// </summary>
         public const float SoundThresholdLow = 10f;    // Below this, special behavior occurs
-        public const float SoundThresholdHigh = 75f;   // Above this, special behavior occurs
+        public const float SoundThresholdHigh = 25f;   // Above this, special behavior occurs
 
         // --- Game of Life Settings ---
         /// <summary>

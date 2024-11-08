@@ -17,6 +17,9 @@ namespace MigrantsExhibition.Src
         private static Texture2D shadowTexture;
         private static readonly Random random = new Random();
 
+        // Vibration offset
+        private Vector2 vibrationOffset = Vector2.Zero;
+
         public Cell(Texture2D texture, Vector2 position, Vector2 direction, int layer, GraphicsDevice graphicsDevice, float depth = 0.5f)
         {
             Texture = texture;
@@ -37,16 +40,18 @@ namespace MigrantsExhibition.Src
 
         public void Update(GameTime gameTime, float soundIntensity)
         {
-            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
             // Handle vibration based on sound intensity
             if (soundIntensity >= Constants.SoundThresholdHigh)
             {
-                Vibrate(soundIntensity, deltaTime);
+                Vibrate(soundIntensity);
+            }
+            else
+            {
+                vibrationOffset = Vector2.Zero; // Reset vibration offset
             }
         }
 
-        private void Vibrate(float soundIntensity, float deltaTime)
+        private void Vibrate(float soundIntensity)
         {
             // Vibration intensity increases with sound intensity
             float excessSound = soundIntensity - Constants.SoundThresholdHigh;
@@ -54,41 +59,10 @@ namespace MigrantsExhibition.Src
             float vibrationIntensity = Constants.CellVibrationIntensityHigh + normalizedExcessSound * (Constants.CellVibrationIntensityMax - Constants.CellVibrationIntensityHigh);
 
             // Apply vibration
-            float vibrationAmount = (vibrationIntensity / 100f) * deltaTime * 100f;
+            float vibrationAmount = vibrationIntensity;
             float offsetX = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
             float offsetY = ((float)random.NextDouble() * 2 - 1) * vibrationAmount;
-            Position += new Vector2(offsetX, offsetY);
-
-            // Ensure the cell stays within screen bounds
-            WrapAround();
-        }
-
-        private void WrapAround()
-        {
-            float leftBound = 0f;
-            float rightBound = graphicsDevice.Viewport.Width;
-            float topBound = 0f;
-            float bottomBound = graphicsDevice.Viewport.Height;
-
-            // Horizontal wrap-around
-            if (Position.X < leftBound)
-            {
-                Position = new Vector2(Position.X + rightBound, Position.Y);
-            }
-            if (Position.X > rightBound)
-            {
-                Position = new Vector2(Position.X - rightBound, Position.Y);
-            }
-
-            // Vertical wrap-around
-            if (Position.Y < topBound)
-            {
-                Position = new Vector2(Position.X, Position.Y + bottomBound);
-            }
-            if (Position.Y > bottomBound)
-            {
-                Position = new Vector2(Position.X, Position.Y - bottomBound);
-            }
+            vibrationOffset = new Vector2(offsetX, offsetY);
         }
 
         // Create a simple circular shadow texture
@@ -106,9 +80,11 @@ namespace MigrantsExhibition.Src
                 {
                     int index = y * diameter + x;
                     Vector2 pos = new Vector2(x - radius, y - radius);
-                    if (pos.LengthSquared() <= radiussq)
+                    float distanceSq = pos.LengthSquared();
+
+                    if (distanceSq <= radiussq)
                     {
-                        float alpha = 1.0f - (pos.Length() / radius); // Fade out towards edges
+                        float alpha = 1.0f - (float)Math.Sqrt(distanceSq) / radius; // Fade out towards edges
                         colorData[index] = new Color(0, 0, 0, alpha * Constants.ShadowOpacity);
                     }
                     else
@@ -134,10 +110,13 @@ namespace MigrantsExhibition.Src
                 _ => Constants.CellSizeLayer1,
             };
 
+            // Calculate the drawing position with vibration offset
+            Vector2 drawPosition = Position + vibrationOffset;
+
             // Define the destination rectangle with desired size
             Rectangle destinationRectangle = new Rectangle(
-                (int)(Position.X - (currentCellSize * Scale) / 2),
-                (int)(Position.Y - (currentCellSize * Scale) / 2),
+                (int)(drawPosition.X - (currentCellSize * Scale) / 2),
+                (int)(drawPosition.Y - (currentCellSize * Scale) / 2),
                 (int)(currentCellSize * Scale),
                 (int)(currentCellSize * Scale)
             );
