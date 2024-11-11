@@ -1,8 +1,4 @@
-﻿Absolutely! Below is a comprehensive and detailed `README.md` file tailored for your **MigrantsExhibition** project. This documentation is designed to guide users of all technical backgrounds, including teens with zero technical knowledge, through the process of setting up and running your application on any operating system using both local execution and Docker containerization.
-
----
-
-# MigrantsExhibition
+﻿# MigrantsExhibition
 
 ![MigrantsExhibition Banner](Content/Images/banner.png) <!-- Replace with your actual banner image -->
 
