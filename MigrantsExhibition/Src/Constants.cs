@@ -14,14 +14,14 @@ namespace MigrantsExhibition.Src
         /// Target frames per second for the application.
         /// Example: 60
         /// </summary>
-        public const int TargetFPS = 24;
+        public const int TargetFPS = 48;
 
         // --- Cell/Image Settings ---
         /// <summary>
         /// Base size of the cells.
         /// Example: 60f
         /// </summary>
-        public const float BaseCellSize = 60f;
+        public const float BaseCellSize = 50f;
 
         /// <summary>
         /// Size of cells in Layer 1.
@@ -74,6 +74,7 @@ namespace MigrantsExhibition.Src
         // To make a layer fully transparent (not visible), assign Color.Transparent
 
         // --- Sound Intensity Thresholds ---
+
         /// <summary>
         /// Sound intensity thresholds used to control behaviors.
         /// Values are on a 1-100 scale.
