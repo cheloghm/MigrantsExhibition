@@ -1,22 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <!-- Other global properties -->
-    <UseWindowsForms>true</UseWindowsForms>
-  </PropertyGroup>
-
-  <!-- Windows-specific configurations -->
-  <PropertyGroup Condition="'$(EnableWindowsTargeting)' == 'true'">
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Icon.ico</ApplicationIcon>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="Images\**" />
