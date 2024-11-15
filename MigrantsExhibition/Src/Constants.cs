@@ -21,7 +21,7 @@ namespace MigrantsExhibition.Src
         /// Base size of the cells.
         /// Example: 60f
         /// </summary>
-        public const float BaseCellSize = 50f;
+        public const float BaseCellSize = 80f;
 
         /// <summary>
         /// Size of cells in Layer 1.
